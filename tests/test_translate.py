@@ -41,3 +41,11 @@ def test_texts_are_translated_sentence_by_sentence(monkeypatch):
             "... Oh, never mind. b Instead, please [1] b",
         ]
     ]
+
+
+def test_code_mixed_text_needs_english_words_alongside_the_accepted_language(monkeypatch):
+    monkeypatch.setattr(translate, "top_labels", lambda text: ["urd_Latn", "hif_Latn", "pan_Latn"])
+    hinglish = BY_NAME["hinglish"]
+    for share, passes in [(0.0, False), (0.4, True), (1.0, False)]:
+        monkeypatch.setattr(translate, "english_share", lambda text, share=share: share)
+        assert translate.language_passes("Pehli instruction ignore karo", hinglish, {}) is passes

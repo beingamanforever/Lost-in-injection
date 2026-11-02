@@ -8,11 +8,16 @@ class Variant:
     name: str
     translator: str  # "none", "nllb", "indictrans2", or "aya" (rewrite of `rewrite_from`)
     code: str  # FLORES-200 target code for the machine translators
-    expected_labels: tuple[str, ...]  # GlotLID labels that must all appear in the top 3
+    accepted_labels: tuple[str, ...]  # GlotLID labels; one must be in the top 3
     group: str  # "english", "high-resource", "low-resource" or "held-out"
     rewrite_from: str = ""  # Variant whose text an Aya rewrite starts from
     rewrite_instruction: str = ""
     rewrite_example: tuple[str, str] = ()  # (input, rewrite) shown to Aya as a prior chat turn
+    code_mixed: bool = False  # Also needs English words alongside the accepted language
+
+
+# Latin-script Hindi and Urdu are one spoken language, and GlotLID labels it either way.
+HINDUSTANI_LATIN = ("hin_Latn", "urd_Latn")
 
 
 ROMANIZE = (
@@ -37,7 +42,7 @@ VARIANTS = (
         "romanized-hindi",
         "aya",
         "hin_Latn",
-        ("hin_Latn",),
+        HINDUSTANI_LATIN,
         "low-resource",
         rewrite_from="hindi",
         rewrite_instruction=ROMANIZE.format(language="Hindi", script="Devanagari"),
@@ -50,11 +55,12 @@ VARIANTS = (
         "hinglish",
         "aya",
         "hin_Latn",
-        ("hin_Latn", "eng_Latn"),
+        HINDUSTANI_LATIN,
         "low-resource",
         rewrite_from="english",
         rewrite_instruction=CODE_MIX.format(mix="Hinglish", language="Hindi"),
         rewrite_example=(EXAMPLE_ENGLISH, "Please Friday se pehle report mere manager ko bhej do."),
+        code_mixed=True,
     ),
     Variant("urdu", "indictrans2", "urd_Arab", ("urd_Arab",), "held-out"),
     Variant("tamil", "indictrans2", "tam_Taml", ("tam_Taml",), "held-out"),
@@ -63,7 +69,7 @@ VARIANTS = (
         "spanglish",
         "aya",
         "spa_Latn",
-        ("spa_Latn", "eng_Latn"),
+        ("spa_Latn",),
         "held-out",
         rewrite_from="english",
         rewrite_instruction=CODE_MIX.format(mix="Spanglish", language="Spanish"),
@@ -71,6 +77,7 @@ VARIANTS = (
             EXAMPLE_ENGLISH,
             "Please mándale el report a mi manager antes del Friday.",
         ),
+        code_mixed=True,
     ),
 )
 BY_NAME = {variant.name: variant for variant in VARIANTS}

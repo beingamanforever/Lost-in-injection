@@ -4,8 +4,9 @@ Each text is masked (masking.py) and translated sentence by sentence into beam c
 because both translators are trained on sentences and drop content from longer inputs. The
 best-ranked candidate that passes every gate is kept:
 1. every masked identifier comes back exactly once;
-2. GlotLID's top 3 labels for its translated words (identifiers removed) include all of the
-   variant's expected labels;
+2. GlotLID's top 3 labels for its translated words (identifiers removed) include one of the
+   variant's accepted labels, and for code-mixed variants 10-90% of its words are English by
+   word-level GlotLID, in the spirit of the Code-Mixing Index (Das and Gambäck, 2014);
 3. its back-translation into English has LaBSE cosine similarity of at least 0.80 with the
    masked source.
 Every candidate is returned with its gate values, so callers save a full audit record.
@@ -45,6 +46,8 @@ NUM_BEAMS = 5  # IndicTrans2's documented beam size, used for both translators.
 MAX_TOKENS = 256  # IndicTrans2's documented max_length. Sources that reach it are rejected.
 BATCH_SIZE = 16
 MIN_SIMILARITY = 0.80
+ENGLISH_SHARE = (0.1, 0.9)  # Both languages present in a code-mixed text.
+WORD = re.compile(r"[^\W\d_]{3,}")  # Words of three or more letters
 SENTENCE_END = re.compile(r"(?<=[.!?।۔።])\s+|(?<=[。！？])")
 
 
@@ -145,6 +148,24 @@ def top_labels(text: str) -> list[str]:
     return [label.removeprefix("__label__") for label in labels]
 
 
+def english_share(text: str) -> float:
+    words = WORD.findall(text)
+    if not words:
+        return 0.0
+    labels, _ = glotlid().predict(words, k=1)
+    return sum(label[0] == f"__label__{ENGLISH}" for label in labels) / len(words)
+
+
+def language_passes(text: str, variant: Variant, attempt: dict) -> bool:
+    attempt["glotlid"] = top_labels(text)
+    if not set(variant.accepted_labels) & set(attempt["glotlid"]):
+        return False
+    if not variant.code_mixed:
+        return True
+    attempt["english_share"] = english_share(text)
+    return ENGLISH_SHARE[0] <= attempt["english_share"] <= ENGLISH_SHARE[1]
+
+
 def similarity(sources: list[str], back_translations: list[str]) -> list[float]:
     if not sources:
         return []
@@ -170,10 +191,10 @@ def gate(
     for i, text_candidates in enumerate(candidates):
         for candidate in text_candidates:
             restored = unmask(candidate, identifiers[i])
-            labels = top_labels(PLACEHOLDER.sub("", candidate)) if restored is not None else []
-            attempt = {"masked": candidate, "restored": restored, "glotlid": labels}
+            attempt = {"masked": candidate, "restored": restored, "glotlid": []}
             records[i]["candidates"].append(attempt)
-            if restored is not None and set(variant.expected_labels) <= set(labels):
+            words = PLACEHOLDER.sub("", candidate)
+            if restored is not None and language_passes(words, variant, attempt):
                 language_passed.append((i, attempt))
 
     back = back_translate([attempt["masked"] for _, attempt in language_passed])
