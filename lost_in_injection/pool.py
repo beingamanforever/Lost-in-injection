@@ -36,9 +36,10 @@ def curate(rows: list[dict], out_dir: Path) -> None:
         max_tokens=2048,
         secrets_gate=True,
         toxicity_gate=True,
-        # With no LLM judge, CuratorKIT rejects every score at or above the pass threshold, so
-        # passing below its reject threshold drops only clearly toxic rows.
+        # With no LLM judge, CuratorKIT rejects every score at or above the pass threshold (the
+        # reject threshold only has to sit above it), so this drops rows scoring 0.5 or more.
         toxicity_classifier_pass_threshold=0.5,
+        toxicity_classifier_reject_threshold=0.9,
         export_formats=["alpaca"],
         output_dir=str(out_dir),
     )
