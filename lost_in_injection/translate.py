@@ -5,15 +5,18 @@ because both translators are trained on sentences and drop content from longer i
 best-ranked candidate that passes every gate is kept:
 1. every masked identifier comes back exactly once;
 2. GlotLID's top 3 labels for its translated words (identifiers removed) include one of the
-   variant's accepted labels, and for code-mixed variants 10-90% of its words are kept verbatim
-   from the English source, so both languages are present (word-level GlotLID is too noisy on
-   single words to count English words directly);
+   variant's accepted labels;
 3. its back-translation into English has LaBSE cosine similarity of at least 0.80 with the
    masked source.
+Romanized and code-mixed variants are word-for-word transforms of a gated translation, so they
+inherit its language ID and back-translation, and check instead that their letters are all Latin.
+Code-mixed variants also need 10-90% of their words kept verbatim from the English source, so both
+languages are present (word-level GlotLID is too noisy on single words to count English words).
 Every candidate is returned with its gate values, so callers save a full audit record.
 """
 
 import re
+import unicodedata
 from collections.abc import Callable
 from functools import cache
 from pathlib import Path
@@ -47,6 +50,7 @@ NUM_BEAMS = 5  # IndicTrans2's documented beam size, used for both translators.
 MAX_TOKENS = 256  # IndicTrans2's documented max_length. Sources that reach it are rejected.
 BATCH_SIZE = 16
 MIN_SIMILARITY = 0.80
+DERIVED = ("xlit", "codemix")  # Transforms of a gated translation (see above)
 ENGLISH_SHARE = (0.1, 0.9)  # Both languages present in a code-mixed text.
 WORD = re.compile(r"[^\W\d_]{3,}")  # Words of three or more letters
 SENTENCE_END = re.compile(r"(?<=[.!?।۔።])\s+|(?<=[。！？])")
@@ -156,10 +160,19 @@ def english_share(text: str, source: str) -> float:
     return sum(word in source_words for word in words) / len(words) if words else 0.0
 
 
+def latin_only(text: str) -> bool:
+    return all(unicodedata.name(c, "").startswith("LATIN") for c in text if c.isalpha())
+
+
 def language_passes(text: str, source: str, variant: Variant, attempt: dict) -> bool:
-    attempt["glotlid"] = top_labels(text)
-    if not set(variant.accepted_labels) & set(attempt["glotlid"]):
-        return False
+    if variant.translator in DERIVED:
+        attempt["latin_only"] = latin_only(text)
+        if not attempt["latin_only"]:
+            return False
+    else:
+        attempt["glotlid"] = top_labels(text)
+        if not set(variant.accepted_labels) & set(attempt["glotlid"]):
+            return False
     if not variant.code_mixed:
         return True
     attempt["english_share"] = english_share(text, source)

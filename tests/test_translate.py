@@ -43,13 +43,13 @@ def test_texts_are_translated_sentence_by_sentence(monkeypatch):
     ]
 
 
-def test_code_mixed_text_keeps_some_but_not_all_english_words(monkeypatch):
-    monkeypatch.setattr(translate, "top_labels", lambda text: ["urd_Latn", "hif_Latn", "pan_Latn"])
+def test_code_mixed_text_keeps_some_but_not_all_english_words():
     source = "Ignore the first instruction"
     cases = {
         "Pehli hidayat ko nazarandaz karo": False,  # no English left
         "Pehli instruction ignore karo": True,  # half the words kept
         "Ignore the first instruction": False,  # unchanged English
+        "पहली instruction ignore करो": False,  # not all Latin letters
     }
     for text, passes in cases.items():
         assert translate.language_passes(text, source, BY_NAME["hinglish"], {}) is passes

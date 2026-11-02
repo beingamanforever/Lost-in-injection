@@ -11,7 +11,8 @@ class Variant:
     # alignments to `align_from`), or "aya" (only the eval-set fallback, eval_sets.py)
     translator: str
     code: str  # FLORES-200 code of the text's language and script
-    accepted_labels: tuple[str, ...]  # GlotLID labels; one must be in the top 3
+    accepted_labels: tuple[str, ...]  # GlotLID labels; one must be in the top 3 (not checked
+    # for xlit and codemix, which inherit their base's language ID)
     group: str  # "english", "high-resource", "low-resource", "held-out" or "intermediate"
     rewrite_from: str = ""
     align_from: str = ""
