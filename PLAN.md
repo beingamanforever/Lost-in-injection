@@ -104,14 +104,19 @@ Translated text is only ever the injected instruction and its attack wrapper. Th
 | French, Chinese | NLLB-200 | `fra_Latn`, `cmn_Hani` | Training: high-resource, one Latin and one non-Latin script |
 | Hindi | IndicTrans2 | `hin_Deva` | Training: low-resource |
 | Swahili | NLLB-200 | `swh_Latn` | Training: low-resource |
-| Romanized Hindi, Hinglish | Aya Expanse 8B rewrite | `hin_Latn` | Training: low-resource |
+| Romanized Hindi | IndicXlit romanization of the gated Hindi | `hin_Latn` or `urd_Latn` | Training: low-resource; same words as Hindi |
+| Hinglish | Romanized Hindi with aligned words switched back to English | `hin_Latn` or `urd_Latn`, 10-90% English words | Training: low-resource; same words as Hindi |
 | Urdu | IndicTrans2 | `urd_Arab` | Held out: Hindi in another script |
 | Tamil | IndicTrans2 | `tam_Taml` | Held out: another Indic language and script |
 | Amharic | NLLB-200 | `amh_Ethi` | Held out: another family and script |
-| Spanglish | Aya Expanse 8B rewrite | `spa_Latn` with `eng_Latn` | Held out: code-mixing in a language absent from training |
+| Spanglish | NLLB Spanish with aligned words switched back to English | `spa_Latn`, 10-90% English words | Held out: code-mixing in a language absent from training |
 
 Indic-Translate (Bodhan AI and AI4Bharat) reports 47.7 English-to-Indic chrF++ against IndicTrans2's 46.4 on its model card, but it is a Gemma 4 model outside the pinned vLLM and transformers, under a custom licence. IndicTrans2 (MIT, TMLR 2023) stays.
-Aya Expanse 8B covers Hindi and Spanish (its model card lists 23 languages), so all three rewrites come from one generator.
+Romanized and code-mixed text is derived from gated translations, so it keeps their meaning word for word:
+- **Romanized Hindi** is AI4Bharat's IndicXlit (trained on human-typed romanizations) run on the masked Hindi. Hindi and romanized Hindi therefore differ only in script.
+- **Code-mixing** aligns the masked English with the gated translation using SimAlign (mBERT, itermax). Of the English words of four or more letters that align one-to-one, every second one replaces its aligned word. Hinglish applies this to romanized Hindi, so Hindi, romanized Hindi and Hinglish carry the same content and differ only in script and mixing. Spanglish applies it to NLLB Spanish, which is otherwise not used.
+- Aya Expanse 8B rewrites were tried first and dropped on Nov 3. They romanized well, but their two-hop meaning check rejected 7 of 75 texts, and Aya would not code-mix Spanish (1-3 of 12 texts mixed even with worked examples or explicit word lists).
+- Language ID accepts `hin_Latn` or `urd_Latn` for Latin-script Hindi, which is one spoken language with Urdu. Code-mixing is checked as the share of words kept verbatim from the English source, because word-level GlotLID is too noisy on single words.
 On Nov 3 the grid was cut from 16 variants to these 11 to fit the GPU budget: Spanish, Russian, Bengali, Yoruba, romanized Bengali and Taglish were dropped, and Spanglish replaced Taglish as the held-out code-mixed variant.
 
 ## Runs
