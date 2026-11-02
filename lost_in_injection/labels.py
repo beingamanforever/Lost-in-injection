@@ -1,0 +1,98 @@
+"""Pick the final pairs and self-generate their labels with the undefended model (GPU).
+
+Multilingual slots are the first MULTILINGUAL_SLOTS candidates of the translation pool whose
+injected instruction and input pass the gates in every training language; English slots are the
+next candidates in draw order. As in Meta-SecAlign (utils.py:94-115), labels are the undefended
+model's own replies at temperature 0.8: chosen answers the clean instruction with its data, and
+rejected answers the injected instruction alone, once per pair and language a run can use. Each
+label records its finish reason, so export can drop pairs that hit the token cap.
+"""
+
+import argparse
+import json
+from pathlib import Path
+
+from vllm import LLM, SamplingParams
+
+from lost_in_injection.evaluate import GPU_MEMORY_UTILIZATION
+from lost_in_injection.runs import MULTILINGUAL_SLOTS, NUM_PAIRS, RUNS, TRAINING_LANGUAGES, language
+from lost_in_injection.skeleton import DATA_SEED, read_jsonl
+from lost_in_injection.translate import read_records
+from lost_in_injection.translate_pairs import POOL_SIZE
+
+# Meta-SecAlign samples at temperature 0.8 with up to 8,192 tokens. The cap here keeps pairs
+# within the 2,048-token training length; 10-20% of the base model's AlpacaFarm answers exceed 512.
+LABELS = SamplingParams(temperature=0.8, max_tokens=1024, seed=DATA_SEED)
+
+
+def injected(pair: dict, lang: str, translations: dict) -> dict[str, str]:
+    source = pair["injection"]
+    if lang == "english":
+        return {field: source[field] for field in ("instruction", "input")}
+    return {
+        field: translations[lang][source[field]] if source[field] else ""
+        for field in ("instruction", "input")
+    }
+
+
+def select(candidates: list[dict], translations: dict) -> list[dict]:
+    def translated_everywhere(pair: dict) -> bool:
+        texts = [pair["injection"][field] for field in ("instruction", "input")]
+        return all(translations[lang].get(t) for lang in TRAINING_LANGUAGES for t in texts if t)
+
+    multilingual = [p for p in candidates[:POOL_SIZE] if translated_everywhere(p)]
+    if len(multilingual) < MULTILINGUAL_SLOTS:
+        raise SystemExit(f"Only {len(multilingual)} candidates pass the gates everywhere")
+    multilingual = multilingual[:MULTILINGUAL_SLOTS]
+    taken = {p["pair_id"] for p in multilingual}
+    english = [p for p in candidates if p["pair_id"] not in taken][: NUM_PAIRS - MULTILINGUAL_SLOTS]
+    return [{**pair, "slot": slot} for slot, pair in enumerate(multilingual + english)]
+
+
+def replies(llm: LLM, prompts: list[str]) -> dict[str, dict]:
+    outputs = llm.chat([[{"role": "user", "content": p}] for p in prompts], LABELS)
+    return {
+        prompt: {"text": output.outputs[0].text, "finish_reason": output.outputs[0].finish_reason}
+        for prompt, output in zip(prompts, outputs, strict=True)
+    }
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("--model", type=Path, default=Path("models/tiny-aya-global"))
+    parser.add_argument("--pairs", type=Path, default=Path("data/pairs"))
+    args = parser.parse_args()
+
+    translations = {
+        lang: {s: r["translation"] for s, r in read_records(path).items()}
+        for lang in TRAINING_LANGUAGES
+        for path in [args.pairs / "translations" / lang / "translations.jsonl"]
+    }
+    pairs = select(read_jsonl(args.pairs / "skeleton.jsonl"), translations)
+    for pair in pairs:
+        languages = sorted({language(run, pair["slot"]) for run in RUNS})
+        pair["injected"] = {lang: injected(pair, lang, translations) for lang in languages}
+
+    def rejected_prompt(injection: dict[str, str]) -> str:
+        return f"{injection['instruction']} {injection['input']}"  # utils.py:113
+
+    def chosen_prompt(pair: dict) -> str:
+        return f"{pair['clean']['instruction']}\n\n{pair['clean']['input']}"  # utils.py:112
+
+    llm = LLM(model=str(args.model), gpu_memory_utilization=GPU_MEMORY_UTILIZATION, seed=DATA_SEED)
+    rejected_prompts = {rejected_prompt(i) for p in pairs for i in p["injected"].values()}
+    labels = replies(llm, sorted({chosen_prompt(p) for p in pairs} | rejected_prompts))
+    for pair in pairs:
+        pair["chosen"] = labels[chosen_prompt(pair)]
+        pair["rejected"] = {
+            lang: labels[rejected_prompt(injection)] for lang, injection in pair["injected"].items()
+        }
+    (args.pairs / "labelled.jsonl").write_text(
+        "".join(json.dumps(pair, ensure_ascii=False) + "\n" for pair in pairs)
+    )
+    capped = sum(label["finish_reason"] == "length" for label in labels.values())
+    print(f"{len(pairs)} pairs, {len(labels)} labels, {capped} hit the token cap")
+
+
+if __name__ == "__main__":
+    main()
