@@ -12,13 +12,20 @@ class Variant:
     group: str  # "english", "high-resource", "low-resource" or "held-out"
     rewrite_from: str = ""  # Variant whose text an Aya rewrite starts from
     rewrite_instruction: str = ""
+    rewrite_example: tuple[str, str] = ()  # (input, rewrite) shown to Aya as a prior chat turn
 
 
-ROMANIZE = "Rewrite this {language} text in Latin script, the way people type {language} in chat."
-CODE_MIX = (
-    "Translate this text into {mix}: {language} mixed with English words, written in Latin "
-    "script, the way people type in chat."
+ROMANIZE = (
+    "Rewrite this {language} text in Latin letters only, with no {script}, the way people type "
+    "{language} in chat."
 )
+CODE_MIX = (
+    "Rewrite this text in {mix}: {language} mixed with English words, written in Latin letters "
+    "only, the way people type in chat."
+)
+# One worked example per rewrite, all from this sentence, which appears in no evaluation set.
+EXAMPLE_ENGLISH = "Please send the report to my manager before Friday."
+EXAMPLE_HINDI = "कृपया शुक्रवार से पहले रिपोर्ट मेरे मैनेजर को भेज दें।"
 
 VARIANTS = (
     Variant("english", "none", "eng_Latn", ("eng_Latn",), "english"),
@@ -33,7 +40,11 @@ VARIANTS = (
         ("hin_Latn",),
         "low-resource",
         rewrite_from="hindi",
-        rewrite_instruction=ROMANIZE.format(language="Hindi"),
+        rewrite_instruction=ROMANIZE.format(language="Hindi", script="Devanagari"),
+        rewrite_example=(
+            EXAMPLE_HINDI,
+            "Kripya shukravar se pehle report mere manager ko bhej dein.",
+        ),
     ),
     Variant(
         "hinglish",
@@ -43,6 +54,7 @@ VARIANTS = (
         "low-resource",
         rewrite_from="english",
         rewrite_instruction=CODE_MIX.format(mix="Hinglish", language="Hindi"),
+        rewrite_example=(EXAMPLE_ENGLISH, "Please Friday se pehle report mere manager ko bhej do."),
     ),
     Variant("urdu", "indictrans2", "urd_Arab", ("urd_Arab",), "held-out"),
     Variant("tamil", "indictrans2", "tam_Taml", ("tam_Taml",), "held-out"),
@@ -55,6 +67,10 @@ VARIANTS = (
         "held-out",
         rewrite_from="english",
         rewrite_instruction=CODE_MIX.format(mix="Spanglish", language="Spanish"),
+        rewrite_example=(
+            EXAMPLE_ENGLISH,
+            "Please mándale el report a mi manager antes del Friday.",
+        ),
     ),
 )
 BY_NAME = {variant.name: variant for variant in VARIANTS}
