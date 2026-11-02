@@ -1,8 +1,8 @@
 """Protect literal identifiers from translation.
 
-Emails, URLs, quoted spans, format placeholders and any token with a digit, underscore, slash
-or tilde are replaced by numbered placeholders such as [1] before translation and restored
-afterwards. A translation is only usable if every placeholder comes back exactly once.
+Emails, URLs, quoted spans, format placeholders, CamelCase names and any token with a digit,
+underscore, slash or tilde are replaced by numbered placeholders such as [1] before translation
+and restored afterwards. A translation is only usable if every placeholder comes back exactly once.
 """
 
 import re
@@ -13,6 +13,7 @@ IDENTIFIER = re.compile(
     r"|(?<!\w)'[^']+'(?!\w)|\"[^\"]+\""  # quoted span, not an apostrophe in "don't"
     r"|\{\w+\}"  # format placeholder such as {injected_prompt}
     r"|[^\s,.;:!?()]*[\d_/~][^\s,;:!?()]*"  # token with a digit, underscore, slash or tilde
+    r"|[^\s,.;:!?()]*[a-z][A-Z][^\s,.;:!?()]*"  # CamelCase name such as TwilioGetPhoneNumberInfo
 )
 PLACEHOLDER = re.compile(r"\[(\d+)\]")
 

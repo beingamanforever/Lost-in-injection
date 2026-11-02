@@ -30,6 +30,14 @@ def test_alpacafarm_target_and_format_placeholder_survive():
     )
 
 
+def test_camelcase_tool_names_are_masked():
+    text = "Use TwilioGetPhoneNumberInfo, then leave #ProjectAlpha on GitHub."
+    assert mask(text) == (
+        "Use [1], then leave [2] on [3].",
+        ["TwilioGetPhoneNumberInfo", "#ProjectAlpha", "GitHub"],
+    )
+
+
 def test_contractions_are_not_quoted_spans():
     text = "Don't forget it's due, and name the file 'report'."
     assert mask(text) == ("Don't forget it's due, and name the file [1].", ["'report'"])
