@@ -4,6 +4,8 @@ Every training language gets the same texts: the instruction and the non-empty i
 the first POOL_SIZE candidates. `labels.py` then uses as multilingual slots only candidates whose
 texts pass the gates in every language, so all runs draw from the same pairs. Each language's
 records, with every candidate and gate value, go to `<out>/<language>/translations.jsonl`.
+Romanized Hindi needs IndicXlit (romanize.py, xlit environment) to run on the Hindi first, so the
+languages run in two calls around it (scripts/build_data.sh).
 """
 
 import argparse
