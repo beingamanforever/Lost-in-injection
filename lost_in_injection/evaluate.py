@@ -66,7 +66,7 @@ def evaluate(
     variants: list[str],
     alpaca_defense: str,
     input_role: bool,
-    injecagent: bool = True,
+    run_injecagent: bool = True,
 ) -> None:
     model_dir, eval_root, raw_dir, out_dir = (
         p.resolve() for p in (model_dir, eval_root, raw_dir, out_dir)
@@ -104,7 +104,7 @@ def evaluate(
                 instruction_hierarchy=input_role,
             )
         )
-        if not injecagent or variant not in INJECAGENT_VARIANTS:
+        if not run_injecagent or variant not in INJECAGENT_VARIANTS:
             continue
         injecagent.main(
             {
