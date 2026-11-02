@@ -54,6 +54,11 @@ If it does not, we ask what multilingual training data closes the gap without co
 - AlignTune needs transformers 5.15 or newer with TRL 1.7.1.
 - So we use two environments, `gen` and `train`.
 
+**Measured on the A10G**
+- **vLLM 0.11.0 cannot serve LoRA on Tiny Aya.** Loading fails with `'VocabParallelEmbeddingWithLoRA' object has no attribute 'quant_method'`, because the output layer is tied to the input embeddings. Adapters are therefore merged into full weights with PEFT before evaluation. Meta-SecAlign's runners then load them as plain models, with no change to their code or pins.
+- **BOS handling.** The template already starts with `<BOS_TOKEN>`. vLLM's `chat` gives exactly one BOS. vLLM's `generate(text)` and the HF tokenizer on rendered text give two. So the leading `<BOS_TOKEN>` is stripped from text prompts at those two points: Meta-SecAlign's runners and the DPO export.
+- **Memory.** The plain model loads in 50 s at `gpu_memory_utilization=0.45`, leaving 1.2 GiB for the KV cache (17.5K tokens).
+
 ## Untrusted-data channel
 
 We take Tiny Aya's official template and add one branch, for role `input`:
