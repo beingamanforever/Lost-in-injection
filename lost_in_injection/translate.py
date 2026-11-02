@@ -11,9 +11,11 @@ best-ranked candidate that passes every gate is kept:
 Every candidate is returned with its gate values, so callers save a full audit record.
 """
 
+import json
 import re
 from collections.abc import Callable
 from functools import cache
+from pathlib import Path
 
 import fasttext
 import torch
@@ -196,3 +198,26 @@ def translate(texts: list[str], variant: Variant) -> list[dict]:
         return [text[0] if text else "" for text in back]
 
     return gate(texts, candidates, variant, back_translate)
+
+
+def read_records(path: Path) -> dict[str, dict]:
+    return {r["source"]: r for r in map(json.loads, path.read_text().splitlines())}
+
+
+def masked_translation(record: dict) -> str:
+    return next(c["masked"] for c in record["candidates"] if c["restored"] == record["translation"])
+
+
+def translate_or_rewrite(sources: list[str], root: Path, variant: Variant) -> list[dict]:
+    """Translate or rewrite English sources into `variant`; rewrites read their input variant
+    from `root/<variant>/translations.jsonl`."""
+    if variant.translator != "aya":
+        return translate(sources, variant)
+    from lost_in_injection.rewrite import rewrite  # Imported here: rewrite imports this module.
+
+    if variant.rewrite_from == "english":
+        inputs = [mask(source)[0] for source in sources]
+    else:
+        records = read_records(root / variant.rewrite_from / "translations.jsonl")
+        inputs = [masked_translation(records[source]) for source in sources]
+    return rewrite(sources, inputs, variant)
