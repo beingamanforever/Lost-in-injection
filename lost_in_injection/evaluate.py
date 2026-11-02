@@ -66,6 +66,7 @@ def evaluate(
     variants: list[str],
     alpaca_defense: str,
     input_role: bool,
+    injecagent: bool = True,
 ) -> None:
     model_dir, eval_root, raw_dir, out_dir = (
         p.resolve() for p in (model_dir, eval_root, raw_dir, out_dir)
@@ -103,7 +104,7 @@ def evaluate(
                 instruction_hierarchy=input_role,
             )
         )
-        if variant not in INJECAGENT_VARIANTS:
+        if not injecagent or variant not in INJECAGENT_VARIANTS:
             continue
         injecagent.main(
             {
@@ -126,6 +127,9 @@ def main() -> None:
     parser.add_argument("--raw", type=Path, default=Path("data/raw"))
     parser.add_argument("--alpaca-defense", default="none", help="Meta-SecAlign prompting defense.")
     parser.add_argument("--no-input-role", action="store_false", dest="input_role")
+    # InjecAgent always uses Meta-SecAlign's sandwich prompt, so a prompting-defense baseline is
+    # identical to the base model there.
+    parser.add_argument("--no-injecagent", action="store_false", dest="injecagent")
     args = parser.parse_args()
     evaluate(
         args.model,
@@ -135,6 +139,7 @@ def main() -> None:
         args.variants,
         args.alpaca_defense,
         args.input_role,
+        args.injecagent,
     )
 
 
