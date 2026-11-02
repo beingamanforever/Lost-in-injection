@@ -1,9 +1,10 @@
 """Write one evaluation folder per language variant.
 
-Each folder holds the four InjecAgent test-case files and the AlpacaFarm-Hacked injection text
-for that variant. English is the untouched original. A translated variant changes only the
-attacker's text: each InjecAgent attacker instruction (in its field and inside the tool
-response), the enhanced-setting prefix, AlpacaFarm's injected prompt and its ignore sentences.
+Each folder holds the AlpacaFarm-Hacked injection text for that variant and, for the InjecAgent
+variants, the four InjecAgent test-case files. English is the untouched original. A translated
+variant changes only the attacker's text: AlpacaFarm's injected prompt and its ignore sentences,
+and each InjecAgent attacker instruction (in its field and inside the tool response) with the
+enhanced-setting prefix.
 Every case must translate, so the same cases exist in every variant; `translations.jsonl`
 records each text's candidates and gate values.
 """
@@ -14,7 +15,7 @@ import shutil
 from pathlib import Path
 
 from lost_in_injection import secalign
-from lost_in_injection.languages import BY_NAME, Variant
+from lost_in_injection.languages import BY_NAME, INJECAGENT_VARIANTS, Variant
 
 INJECAGENT_FILES = [f"test_cases_{a}_{s}.json" for a in ("dh", "ds") for s in ("base", "enhanced")]
 INJECTION_FILE = "alpacafarm_injection.json"
@@ -44,17 +45,13 @@ def write_english(raw_dir: Path, out_dir: Path) -> None:
 def write_translated(english_dir: Path, out_dir: Path, variant: Variant) -> None:
     from lost_in_injection.translate import translate  # Needs the GPU translation models.
 
-    cases = {name: json.loads((english_dir / name).read_text()) for name in INJECAGENT_FILES}
     injection = json.loads((english_dir / INJECTION_FILE).read_text())
-    instructions = sorted(
-        {case["Attacker Instruction"] for file in cases.values() for case in file}
-    )
-    sources = [
-        ENHANCED_PREFIX,
-        injection["injected_prompt"],
-        *injection["ignore_sentences"],
-        *instructions,
-    ]
+    sources = [injection["injected_prompt"], *injection["ignore_sentences"]]
+    cases = {}
+    if variant.name in INJECAGENT_VARIANTS:
+        cases = {name: json.loads((english_dir / name).read_text()) for name in INJECAGENT_FILES}
+        instructions = {case["Attacker Instruction"] for file in cases.values() for case in file}
+        sources += [ENHANCED_PREFIX, *sorted(instructions)]
     records = translate(sources, variant)
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "translations.jsonl").write_text(

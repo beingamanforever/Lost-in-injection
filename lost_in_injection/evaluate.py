@@ -16,6 +16,7 @@ import numpy as np
 from vllm import LLM
 
 from lost_in_injection import secalign
+from lost_in_injection.languages import INJECAGENT_VARIANTS
 
 GPU_MEMORY_UTILIZATION = 0.90  # The A10G is dedicated to this project; same value for every run.
 # Meta-SecAlign's non-adaptive AlpacaFarm-Hacked attacks (test.py:254).
@@ -28,8 +29,6 @@ ALPACA_ATTACKS = [
     "completion_ignore",
 ]
 INJECAGENT_DEFENSE = "sandwich"  # Meta-SecAlign's InjecAgent protocol (run_tests.py:23).
-# Full InjecAgent costs about 75 minutes per variant, so it runs on these four for every model.
-INJECAGENT_VARIANTS = {"english", "hindi", "romanized-hindi", "urdu"}
 
 
 class SharedGpuLLM(LLM):

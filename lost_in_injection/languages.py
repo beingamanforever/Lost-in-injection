@@ -58,6 +58,8 @@ VARIANTS = (
     ),
 )
 BY_NAME = {variant.name: variant for variant in VARIANTS}
+# Full InjecAgent costs about 75 minutes per variant, so it runs on these four for every model.
+INJECAGENT_VARIANTS = {"english", "hindi", "romanized-hindi", "urdu"}
 
 
 def in_group(group: str) -> list[Variant]:

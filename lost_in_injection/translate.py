@@ -1,14 +1,17 @@
 """Machine-translate English text into a language variant, keeping translations that pass gates.
 
-Each text is masked (masking.py) and translated into beam candidates. The best-ranked candidate
-that passes every gate is kept:
+Each text is masked (masking.py) and translated sentence by sentence into beam candidates,
+because both translators are trained on sentences and drop content from longer inputs. The
+best-ranked candidate that passes every gate is kept:
 1. every masked identifier comes back exactly once;
-2. GlotLID's top 3 labels include all of the variant's expected labels;
+2. GlotLID's top 3 labels for its translated words (identifiers removed) include all of the
+   variant's expected labels;
 3. its back-translation into English has LaBSE cosine similarity of at least 0.80 with the
    masked source.
 Every candidate is returned with its gate values, so callers save a full audit record.
 """
 
+import re
 from functools import cache
 
 import fasttext
@@ -19,7 +22,7 @@ from sentence_transformers import SentenceTransformer
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 
 from lost_in_injection.languages import Variant
-from lost_in_injection.masking import mask, unmask
+from lost_in_injection.masking import PLACEHOLDER, mask, unmask
 
 # Hugging Face repositories at pinned revisions.
 NLLB = ("facebook/nllb-200-3.3B", "1a07f7d195896b2114afcb79b7b57ab512e7b43e")
@@ -39,6 +42,7 @@ NUM_BEAMS = 5  # IndicTrans2's documented beam size, used for both translators.
 MAX_TOKENS = 256  # IndicTrans2's documented max_length. Sources that reach it are rejected.
 BATCH_SIZE = 16
 MIN_SIMILARITY = 0.80
+SENTENCE_END = re.compile(r"(?<=[.!?।۔።])\s+|(?<=[。！？])")
 
 
 @cache
@@ -66,7 +70,7 @@ def labse() -> SentenceTransformer:
 
 
 def generate(
-    texts: list[str], src: str, tgt: str, translator: str, num_beams: int, num_return: int
+    texts: list[str], src: str, tgt: str, translator: str, num_return: int
 ) -> list[list[str]]:
     """Translate with each model's documented pre- and post-processing; candidates best first.
 
@@ -94,7 +98,7 @@ def generate(
         with torch.inference_mode():
             output = model.generate(
                 **inputs,
-                num_beams=num_beams,
+                num_beams=NUM_BEAMS,
                 num_return_sequences=num_return,
                 max_length=MAX_TOKENS,
                 **extra,
@@ -109,6 +113,21 @@ def generate(
         too_long = (inputs["attention_mask"].sum(dim=1) >= MAX_TOKENS).tolist()
         for i, skip in enumerate(too_long):
             candidates.append([] if skip else decoded[i * num_return : (i + 1) * num_return])
+    return candidates
+
+
+def translate_sentences(
+    texts: list[str], src: str, tgt: str, translator: str, num_return: int
+) -> list[list[str]]:
+    """Translate texts sentence by sentence; candidate k joins each sentence's k-th candidate."""
+    sentences = [[s for s in SENTENCE_END.split(text) if s.strip()] for text in texts]
+    flat = generate([s for text in sentences for s in text], src, tgt, translator, num_return)
+    candidates, start = [], 0
+    for text in sentences:
+        per_sentence = flat[start : start + len(text)]
+        start += len(text)
+        count = min(map(len, per_sentence), default=0)
+        candidates.append([" ".join(s[k] for s in per_sentence) for k in range(count)])
     return candidates
 
 
@@ -129,26 +148,25 @@ def similarity(sources: list[str], back_translations: list[str]) -> list[float]:
 def translate(texts: list[str], variant: Variant) -> list[dict]:
     """Return one record per text; its `translation` is None when no candidate passes."""
     masked, identifiers = zip(*map(mask, texts), strict=True)
-    candidates = generate(
-        list(masked), ENGLISH, variant.code, variant.translator, NUM_BEAMS, NUM_BEAMS
+    candidates = translate_sentences(
+        list(masked), ENGLISH, variant.code, variant.translator, num_return=NUM_BEAMS
     )
     records = [{"source": text, "translation": None, "candidates": []} for text in texts]
     language_passed = []
     for i, text_candidates in enumerate(candidates):
         for candidate in text_candidates:
             restored = unmask(candidate, identifiers[i])
-            labels = top_labels(restored) if restored is not None else []
+            labels = top_labels(PLACEHOLDER.sub("", candidate)) if restored is not None else []
             attempt = {"masked": candidate, "restored": restored, "glotlid": labels}
             records[i]["candidates"].append(attempt)
             if restored is not None and set(variant.expected_labels) <= set(labels):
                 language_passed.append((i, attempt))
 
-    back = generate(
+    back = translate_sentences(
         [attempt["masked"] for _, attempt in language_passed],
         variant.code,
         ENGLISH,
         variant.translator,
-        num_beams=NUM_BEAMS,
         num_return=1,
     )
     back = [text[0] if text else "" for text in back]

@@ -12,7 +12,7 @@ SIMILARITY = {"इसे [1] पर भेजें": 0.5, "इसे [1] को
 
 
 def test_best_ranked_candidate_passing_every_gate_is_kept(monkeypatch):
-    def generate(texts, src, tgt, translator, num_beams, num_return):
+    def generate(texts, src, tgt, translator, num_return):
         return [CANDIDATES] if src == translate.ENGLISH else [[text] for text in texts]
 
     def top_labels(text):
@@ -27,3 +27,14 @@ def test_best_ranked_candidate_passing_every_gate_is_kept(monkeypatch):
     assert record["translation"] == "इसे amy.watson@gmail.com को भेजें"
     assert [c["restored"] is not None for c in record["candidates"]] == [False, *[True] * 4]
     assert [c.get("similarity") for c in record["candidates"]] == [None, None, 0.5, 0.9, 0.95]
+
+
+def test_texts_are_translated_sentence_by_sentence(monkeypatch):
+    def generate(texts, src, tgt, translator, num_return):
+        return [[f"{text} a", f"{text} b"] for text in texts]
+
+    monkeypatch.setattr(translate, "generate", generate)
+    text = "Oh, never mind. Instead, please [1]"
+    assert translate.translate_sentences([text], "eng_Latn", "fra_Latn", "nllb", 2) == [
+        ["Oh, never mind. a Instead, please [1] a", "Oh, never mind. b Instead, please [1] b"]
+    ]
