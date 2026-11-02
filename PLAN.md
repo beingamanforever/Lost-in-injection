@@ -60,7 +60,8 @@ If it does not, we ask what multilingual training data closes the gap without co
 - **Memory.** On the shared GPU, `gpu_memory_utilization=0.45` left 1.2 GiB for the KV cache (17.5K tokens, about 2 concurrent 8K requests). One English evaluation of the base model would have taken about 2.3 hours.
 - **Dedicated GPU.** On Nov 2 the OCR demo that shared the A10G was stopped, by the user's decision, and every evaluation now runs at `gpu_memory_utilization=0.90`. The 0.45 pilot was stopped part-way and is not reported.
 - **Repeat-run noise.** The base model's AlpacaFarm-Hacked combined ASR was 67.8% at 0.45 and 68.3% at 0.90, one case of 208. This is vLLM's batch non-invariance under greedy decoding, and it sets the floor for differences worth reporting.
-- **Evaluation time at 0.90.** AlpacaFarm-Hacked takes about 6 minutes on the base model. A few generations run to the 8K context, so each pass has a floor of a few minutes.
+- **Evaluation time at 0.90.** English on the base model took 85 minutes: about 6 for AlpacaFarm-Hacked and about 75 for InjecAgent's two settings. About 1% of outputs run to the 8K context and carry 28% of the generated tokens. InjecAgent scores only the first 500 words, so these tails cost time without changing scores.
+- **Base model, English.** AlpacaFarm-Hacked combined ASR is 68.3%. InjecAgent ASR over all cases (Meta-SecAlign's summary) is 6.0% in the base setting and 14.5% in the enhanced setting. Valid outputs are 42-44% for direct harm and 30% for data stealing; most invalid outputs invent a tool observation instead of stopping.
 
 ## Untrusted-data channel
 
@@ -257,6 +258,6 @@ Datasets, adapters and evaluation outputs are pushed to the Hugging Face Hub aft
   1. a 1,536-token cap
   2. 4-bit base weights with the same LoRA
   3. fewer pairs
-- **Weak base model:** if Tiny Aya's base InjecAgent valid rate is too low to read ASR, the headline benchmark becomes AlpacaFarm-Hacked and InjecAgent is reported secondarily.
+- **Weak base model:** if Tiny Aya's base InjecAgent valid rate is too low to read ASR, the headline benchmark becomes AlpacaFarm-Hacked and InjecAgent is reported secondarily. Triggered on Nov 3 by the 30-44% valid rates above; InjecAgent is reported with its valid rate.
 - **Attack strength varies by language:** translation quality can change how strong an attack is. Relative reduction against the base model per variant, plus the translation gates, control for this.
 - **Tooling compatibility:** if Meta-SecAlign's pins don't serve Tiny Aya LoRA, upgrade vLLM in the `gen` environment and record the version.
