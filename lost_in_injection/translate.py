@@ -12,6 +12,7 @@ Every candidate is returned with its gate values, so callers save a full audit r
 """
 
 import re
+from collections.abc import Callable
 from functools import cache
 
 import fasttext
@@ -145,12 +146,17 @@ def similarity(sources: list[str], back_translations: list[str]) -> list[float]:
     return (a * b).sum(dim=1).tolist()
 
 
-def translate(texts: list[str], variant: Variant) -> list[dict]:
-    """Return one record per text; its `translation` is None when no candidate passes."""
+def gate(
+    texts: list[str],
+    candidates: list[list[str]],
+    variant: Variant,
+    back_translate: Callable[[list[str]], list[str]],
+) -> list[dict]:
+    """Keep each text's best-ranked masked candidate that passes every gate.
+
+    Returns one record per text; its `translation` is None when no candidate passes.
+    """
     masked, identifiers = zip(*map(mask, texts), strict=True)
-    candidates = translate_sentences(
-        list(masked), ENGLISH, variant.code, variant.translator, num_return=NUM_BEAMS
-    )
     records = [{"source": text, "translation": None, "candidates": []} for text in texts]
     language_passed = []
     for i, text_candidates in enumerate(candidates):
@@ -162,14 +168,7 @@ def translate(texts: list[str], variant: Variant) -> list[dict]:
             if restored is not None and set(variant.expected_labels) <= set(labels):
                 language_passed.append((i, attempt))
 
-    back = translate_sentences(
-        [attempt["masked"] for _, attempt in language_passed],
-        variant.code,
-        ENGLISH,
-        variant.translator,
-        num_return=1,
-    )
-    back = [text[0] if text else "" for text in back]
+    back = back_translate([attempt["masked"] for _, attempt in language_passed])
     scores = similarity([masked[i] for i, _ in language_passed], back)
     for (i, attempt), back_translation, score in zip(language_passed, back, scores, strict=True):
         attempt["back_translation"] = back_translation
@@ -177,3 +176,17 @@ def translate(texts: list[str], variant: Variant) -> list[dict]:
         if records[i]["translation"] is None and score >= MIN_SIMILARITY:
             records[i]["translation"] = attempt["restored"]
     return records
+
+
+def translate(texts: list[str], variant: Variant) -> list[dict]:
+    """Machine-translate English texts into `variant` and gate them."""
+    masked = [mask(text)[0] for text in texts]
+    candidates = translate_sentences(
+        masked, ENGLISH, variant.code, variant.translator, num_return=NUM_BEAMS
+    )
+
+    def back_translate(texts: list[str]) -> list[str]:
+        back = translate_sentences(texts, variant.code, ENGLISH, variant.translator, num_return=1)
+        return [text[0] if text else "" for text in back]
+
+    return gate(texts, candidates, variant, back_translate)

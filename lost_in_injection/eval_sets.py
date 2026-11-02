@@ -16,6 +16,7 @@ from pathlib import Path
 
 from lost_in_injection import secalign
 from lost_in_injection.languages import BY_NAME, INJECAGENT_VARIANTS, Variant
+from lost_in_injection.masking import mask
 
 INJECAGENT_FILES = [f"test_cases_{a}_{s}.json" for a in ("dh", "ds") for s in ("base", "enhanced")]
 INJECTION_FILE = "alpacafarm_injection.json"
@@ -42,9 +43,31 @@ def write_english(raw_dir: Path, out_dir: Path) -> None:
     write_json(out_dir / INJECTION_FILE, injection)
 
 
-def write_translated(english_dir: Path, out_dir: Path, variant: Variant) -> None:
-    from lost_in_injection.translate import translate  # Needs the GPU translation models.
+def read_records(path: Path) -> dict[str, dict]:
+    return {r["source"]: r for r in map(json.loads, path.read_text().splitlines())}
 
+
+def masked_translation(record: dict) -> str:
+    return next(c["masked"] for c in record["candidates"] if c["restored"] == record["translation"])
+
+
+def translate_or_rewrite(sources: list[str], eval_root: Path, variant: Variant) -> list[dict]:
+    # Imported here because both need the GPU models.
+    if variant.translator != "aya":
+        from lost_in_injection.translate import translate
+
+        return translate(sources, variant)
+    from lost_in_injection.rewrite import rewrite
+
+    if variant.rewrite_from == "english":
+        inputs = [mask(source)[0] for source in sources]
+    else:
+        records = read_records(eval_root / variant.rewrite_from / "translations.jsonl")
+        inputs = [masked_translation(records[source]) for source in sources]
+    return rewrite(sources, inputs, variant)
+
+
+def write_translated(english_dir: Path, out_dir: Path, variant: Variant) -> None:
     injection = json.loads((english_dir / INJECTION_FILE).read_text())
     sources = [injection["injected_prompt"], *injection["ignore_sentences"]]
     cases = {}
@@ -52,7 +75,7 @@ def write_translated(english_dir: Path, out_dir: Path, variant: Variant) -> None
         cases = {name: json.loads((english_dir / name).read_text()) for name in INJECAGENT_FILES}
         instructions = {case["Attacker Instruction"] for file in cases.values() for case in file}
         sources += [ENHANCED_PREFIX, *sorted(instructions)]
-    records = translate(sources, variant)
+    records = translate_or_rewrite(sources, english_dir.parent, variant)
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "translations.jsonl").write_text(
         "".join(json.dumps(record, ensure_ascii=False) + "\n" for record in records)
