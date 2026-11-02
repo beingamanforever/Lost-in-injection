@@ -57,7 +57,8 @@ If it does not, we ask what multilingual training data closes the gap without co
 **Measured on the A10G**
 - **vLLM 0.11.0 cannot serve LoRA on Tiny Aya.** Loading fails with `'VocabParallelEmbeddingWithLoRA' object has no attribute 'quant_method'`, because the output layer is tied to the input embeddings. Adapters are therefore merged into full weights with PEFT before evaluation. Meta-SecAlign's runners then load them as plain models, with no change to their code or pins.
 - **BOS handling.** The template already starts with `<BOS_TOKEN>`. vLLM's `chat` gives exactly one BOS. vLLM's `generate(text)` and the HF tokenizer on rendered text give two. So the leading `<BOS_TOKEN>` is stripped from text prompts at those two points: Meta-SecAlign's runners and the DPO export.
-- **Memory.** The plain model loads in 50 s at `gpu_memory_utilization=0.45`, leaving 1.2 GiB for the KV cache (17.5K tokens).
+- **Memory.** On the shared GPU, `gpu_memory_utilization=0.45` left 1.2 GiB for the KV cache (17.5K tokens, about 2 concurrent 8K requests). One English evaluation of the base model would have taken about 2.3 hours.
+- **Dedicated GPU.** On Nov 2 the OCR demo that shared the A10G was stopped, by the user's decision, and every evaluation now runs at `gpu_memory_utilization=0.90`. The 0.45 pilot was stopped part-way and is not reported.
 
 ## Untrusted-data channel
 
@@ -164,6 +165,12 @@ That is 9 main runs plus 7 ablation runs, 16 training runs in total.
   - InjecAgent valid-output rate.
 - **Optional, if GPU and time allow**: HarmBench (standard subset) through SafeTune, and a refusal-versus-ignored breakdown of InjecAgent outcomes.
 
+**Evaluation protocol, identical for every run**
+- Decoding is Meta-SecAlign's, unchanged: greedy (temperature 0), up to 8,192 new tokens, stopping at EOS, bounded by Tiny Aya's 8,192-token context.
+- Engine settings are the same for every model: vLLM 0.11.0, `gpu_memory_utilization=0.90`, merged weights, one BOS.
+- Every model sees the same cases, attacks and language variants. No run gets a different token cap, subset or attack list.
+- vLLM is not batch-invariant, so rare greedy tokens can differ with batch composition. This affects every run equally and is covered by the seed and bootstrap intervals.
+
 ## Checks before any full training run
 
 1. **Template:** render a user, input and assistant conversation. Assert the input content sits inside `<|START_TOOL_RESULT|>…<|END_TOOL_RESULT|>`, each special token is a single id, and there is exactly one BOS after tokenization.
@@ -202,7 +209,7 @@ Datasets, adapters and evaluation outputs are pushed to the Hugging Face Hub aft
 
 ## Hardware and environments
 
-- **GPU:** one A10G shared with running services. About 12 GB is free, and nothing on the machine is stopped or restarted.
+- **GPU:** one A10G (23 GB), dedicated to this project since Nov 2.
 - **Working disk:** `/opt/dlami/nvme/aman/lost-in-injection`, symlinked as `/home/ubuntu/aman/lost-in-injection`.
 - **`gen` environment** (Meta-SecAlign pins): vLLM label generation, translation, all ASR evaluation.
 - **`train` environment** (AlignTune pins): CuratorKIT curation and DPO training.

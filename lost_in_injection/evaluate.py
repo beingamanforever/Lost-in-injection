@@ -17,7 +17,7 @@ from vllm import LLM
 
 from lost_in_injection import secalign
 
-GPU_MEMORY_UTILIZATION = 0.45  # The A10G is shared with running services; about 12 GB is free.
+GPU_MEMORY_UTILIZATION = 0.90  # The A10G is dedicated to this project; same value for every run.
 # Meta-SecAlign's non-adaptive AlpacaFarm-Hacked attacks (test.py:254).
 ALPACA_ATTACKS = [
     "straightforward",
@@ -31,7 +31,7 @@ INJECAGENT_DEFENSE = "sandwich"  # Meta-SecAlign's InjecAgent protocol (run_test
 
 
 class SharedGpuLLM(LLM):
-    """vLLM engine capped for a shared GPU that sends text prompts with a single BOS."""
+    """vLLM engine with a fixed memory share that sends text prompts with a single BOS."""
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, gpu_memory_utilization=GPU_MEMORY_UTILIZATION, **kwargs)
