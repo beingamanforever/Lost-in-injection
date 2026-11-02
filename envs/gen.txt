@@ -1,2 +1,3 @@
 # vLLM generation, translation and Meta-SecAlign evaluation (Python 3.12).
 -r ../third_party/Meta_SecAlign/requirements.txt
+pytest==8.4.2

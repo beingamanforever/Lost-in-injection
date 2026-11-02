@@ -6,3 +6,5 @@ export UV_PYTHON_INSTALL_DIR=/opt/dlami/nvme/aman/uv-python
 export TMPDIR=/opt/dlami/nvme/aman/tmp
 export PATH=/opt/dlami/nvme/aman/tools/bin:$PATH
 mkdir -p "$TMPDIR"
+# Driver 570 supports CUDA up to 12.8; take torch wheels built for it.
+export UV_TORCH_BACKEND=cu128
