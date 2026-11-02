@@ -59,6 +59,8 @@ If it does not, we ask what multilingual training data closes the gap without co
 - **BOS handling.** The template already starts with `<BOS_TOKEN>`. vLLM's `chat` gives exactly one BOS. vLLM's `generate(text)` and the HF tokenizer on rendered text give two. So the leading `<BOS_TOKEN>` is stripped from text prompts at those two points: Meta-SecAlign's runners and the DPO export.
 - **Memory.** On the shared GPU, `gpu_memory_utilization=0.45` left 1.2 GiB for the KV cache (17.5K tokens, about 2 concurrent 8K requests). One English evaluation of the base model would have taken about 2.3 hours.
 - **Dedicated GPU.** On Nov 2 the OCR demo that shared the A10G was stopped, by the user's decision, and every evaluation now runs at `gpu_memory_utilization=0.90`. The 0.45 pilot was stopped part-way and is not reported.
+- **Repeat-run noise.** The base model's AlpacaFarm-Hacked combined ASR was 67.8% at 0.45 and 68.3% at 0.90, one case of 208. This is vLLM's batch non-invariance under greedy decoding, and it sets the floor for differences worth reporting.
+- **Evaluation time at 0.90.** AlpacaFarm-Hacked takes about 6 minutes on the base model. A few generations run to the 8K context, so each pass has a floor of a few minutes.
 
 ## Untrusted-data channel
 
@@ -105,7 +107,10 @@ Translated text is only ever the injected instruction and its attack wrapper. Th
 | Urdu | IndicTrans2 | `urd_Arab` | Held out: Hindi in another script |
 | Tamil | IndicTrans2 | `tam_Taml` | Held out |
 | Amharic, Yoruba | NLLB-200 | `amh_Ethi`, `yor_Latn` | Held out |
-| Romanized Bengali, Taglish | Aya Expanse 8B rewrite | `ben_Latn`, `fil_Latn` | Held out: unseen romanization and code-mixing |
+| Romanized Bengali, Taglish | Rewrite, generator to be chosen | `ben_Latn`, `fil_Latn` | Held out: unseen romanization and code-mixing |
+
+Indic-Translate (Bodhan AI and AI4Bharat) reports 47.7 English-to-Indic chrF++ against IndicTrans2's 46.4 on its model card, but it is a Gemma 4 model outside the pinned vLLM and transformers, under a custom licence. IndicTrans2 (MIT, TMLR 2023) stays.
+Aya Expanse 8B covers Hindi but not Bengali or Tagalog (its model card lists 23 languages). Romanized Bengali and Taglish therefore need another generator, preferably one generator for all four rewrite variants so the rewrites differ only in language.
 
 ## Runs
 
