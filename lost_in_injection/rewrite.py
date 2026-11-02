@@ -26,8 +26,9 @@ FRAME = (
 )
 TO_ENGLISH = "Translate this text into English."
 GREEDY = SamplingParams(temperature=0, max_tokens=512)
-# Four seeded samples follow the greedy candidate, so the gates have alternatives to choose from.
-SAMPLED = SamplingParams(n=4, temperature=0.7, seed=0, max_tokens=512)
+# Nine seeded samples follow the greedy candidate. A rewrite is scored through a second model
+# hop (Aya's own back-translation), so it needs more alternatives than a translation's five beams.
+SAMPLED = SamplingParams(n=9, temperature=0.7, seed=0, max_tokens=512)
 
 
 @cache
