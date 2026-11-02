@@ -76,7 +76,9 @@ def generate(
     if translator == "indictrans2":
         model_id = INDICTRANS2_EN_INDIC if src == ENGLISH else INDICTRANS2_INDIC_EN
         tokenizer, model = seq2seq(*model_id)
-        extra = {}
+        # IndicTrans2's remote code reads legacy tuple caches, and transformers 4.57 passes a
+        # Cache object, so decoding runs without a cache: slower, same outputs.
+        extra = {"use_cache": False}
     else:
         tokenizer, model = seq2seq(*NLLB)
         tokenizer.src_lang = src
