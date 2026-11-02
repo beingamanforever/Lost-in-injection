@@ -5,8 +5,9 @@ because both translators are trained on sentences and drop content from longer i
 best-ranked candidate that passes every gate is kept:
 1. every masked identifier comes back exactly once;
 2. GlotLID's top 3 labels for its translated words (identifiers removed) include one of the
-   variant's accepted labels, and for code-mixed variants 10-90% of its words are English by
-   word-level GlotLID, in the spirit of the Code-Mixing Index (Das and Gambäck, 2014);
+   variant's accepted labels, and for code-mixed variants 10-90% of its words are kept verbatim
+   from the English source, so both languages are present (word-level GlotLID is too noisy on
+   single words to count English words directly);
 3. its back-translation into English has LaBSE cosine similarity of at least 0.80 with the
    masked source.
 Every candidate is returned with its gate values, so callers save a full audit record.
@@ -148,21 +149,20 @@ def top_labels(text: str) -> list[str]:
     return [label.removeprefix("__label__") for label in labels]
 
 
-def english_share(text: str) -> float:
-    words = WORD.findall(text)
-    if not words:
-        return 0.0
-    labels, _ = glotlid().predict(words, k=1)
-    return sum(label[0] == f"__label__{ENGLISH}" for label in labels) / len(words)
+def english_share(text: str, source: str) -> float:
+    """Share of the text's words that appear verbatim in the English source."""
+    words = [word.lower() for word in WORD.findall(text)]
+    source_words = {word.lower() for word in WORD.findall(source)}
+    return sum(word in source_words for word in words) / len(words) if words else 0.0
 
 
-def language_passes(text: str, variant: Variant, attempt: dict) -> bool:
+def language_passes(text: str, source: str, variant: Variant, attempt: dict) -> bool:
     attempt["glotlid"] = top_labels(text)
     if not set(variant.accepted_labels) & set(attempt["glotlid"]):
         return False
     if not variant.code_mixed:
         return True
-    attempt["english_share"] = english_share(text)
+    attempt["english_share"] = english_share(text, source)
     return ENGLISH_SHARE[0] <= attempt["english_share"] <= ENGLISH_SHARE[1]
 
 
@@ -193,8 +193,8 @@ def gate(
             restored = unmask(candidate, identifiers[i])
             attempt = {"masked": candidate, "restored": restored, "glotlid": []}
             records[i]["candidates"].append(attempt)
-            words = PLACEHOLDER.sub("", candidate)
-            if restored is not None and language_passes(words, variant, attempt):
+            words, source = PLACEHOLDER.sub("", candidate), PLACEHOLDER.sub("", masked[i])
+            if restored is not None and language_passes(words, source, variant, attempt):
                 language_passed.append((i, attempt))
 
     back = back_translate([attempt["masked"] for _, attempt in language_passed])

@@ -43,9 +43,13 @@ def test_texts_are_translated_sentence_by_sentence(monkeypatch):
     ]
 
 
-def test_code_mixed_text_needs_english_words_alongside_the_accepted_language(monkeypatch):
+def test_code_mixed_text_keeps_some_but_not_all_english_words(monkeypatch):
     monkeypatch.setattr(translate, "top_labels", lambda text: ["urd_Latn", "hif_Latn", "pan_Latn"])
-    hinglish = BY_NAME["hinglish"]
-    for share, passes in [(0.0, False), (0.4, True), (1.0, False)]:
-        monkeypatch.setattr(translate, "english_share", lambda text, share=share: share)
-        assert translate.language_passes("Pehli instruction ignore karo", hinglish, {}) is passes
+    source = "Ignore the first instruction"
+    cases = {
+        "Pehli hidayat ko nazarandaz karo": False,  # no English left
+        "Pehli instruction ignore karo": True,  # half the words kept
+        "Ignore the first instruction": False,  # unchanged English
+    }
+    for text, passes in cases.items():
+        assert translate.language_passes(text, source, BY_NAME["hinglish"], {}) is passes

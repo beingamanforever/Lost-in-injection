@@ -25,8 +25,8 @@ ROMANIZE = (
     "{language} in chat."
 )
 CODE_MIX = (
-    "Rewrite this text in {mix}: {language} mixed with English words, written in Latin letters "
-    "only, the way people type in chat."
+    "Rewrite this text in {mix}: {language} mixed with English, keeping about a third of the "
+    "words in English, written in Latin letters only, the way people type in chat."
 )
 # One worked example per rewrite, all from this sentence, which appears in no evaluation set.
 EXAMPLE_ENGLISH = "Please send the report to my manager before Friday."
