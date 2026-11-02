@@ -15,8 +15,9 @@ from lost_in_injection.languages import Variant
 from lost_in_injection.translate import gate
 
 AYA_EXPANSE = ("CohereLabs/aya-expanse-8b", "5062468bf9bc0c6035fd64e06274333ec127d980")
-# The bf16 weights take about 16 GB; the rest leaves room for LaBSE on the same GPU.
-GPU_MEMORY_UTILIZATION = 0.80
+# The bf16 weights take 15 GiB and vLLM's activations about 2.8 GiB. This leaves about 1.6 GiB of
+# KV cache for vLLM and 3 GiB outside it for LaBSE.
+GPU_MEMORY_UTILIZATION = 0.86
 KEEP_PLACEHOLDERS = (
     "Keep every placeholder such as [1] exactly as written. Reply with the text only."
 )
@@ -32,7 +33,7 @@ def aya() -> LLM:
         model=AYA_EXPANSE[0],
         revision=AYA_EXPANSE[1],
         gpu_memory_utilization=GPU_MEMORY_UTILIZATION,
-        max_model_len=4096,
+        max_model_len=2048,
         seed=0,
     )
 

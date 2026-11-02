@@ -6,12 +6,15 @@ variant changes only the attacker's text: AlpacaFarm's injected prompt and its i
 and each InjecAgent attacker instruction (in its field and inside the tool response) with the
 enhanced-setting prefix.
 Every case must translate, so the same cases exist in every variant; `translations.jsonl`
-records each text's candidates and gate values.
+records each text's candidates and gate values. A text that every machine-translation candidate
+fails can be retried with `--aya-fallback`, in a fresh process: Aya Expanse 8B translates it behind
+the same gates, and the record keeps the failed candidates.
 """
 
 import argparse
 import json
 import shutil
+from dataclasses import replace
 from pathlib import Path
 
 from lost_in_injection import secalign
@@ -42,7 +45,26 @@ def write_english(raw_dir: Path, out_dir: Path) -> None:
     write_json(out_dir / INJECTION_FILE, injection)
 
 
-def write_translated(english_dir: Path, out_dir: Path, variant: Variant) -> None:
+def with_aya_fallback(records: list[dict], root: Path, variant: Variant) -> list[dict]:
+    from lost_in_injection.translate import translate_or_rewrite  # Needs the GPU models.
+
+    failed = [record["source"] for record in records if record["translation"] is None]
+    instruction = f"Translate this text into {variant.name.title()}."
+    aya = replace(
+        variant, translator="aya", rewrite_from="english", rewrite_instruction=instruction
+    )
+    retried = {r["source"]: r for r in translate_or_rewrite(failed, root, aya)}
+    return [
+        {**retried[r["source"]], "fallback": "aya-expanse-8b", "machine_translation": r}
+        if r["source"] in retried
+        else r
+        for r in records
+    ]
+
+
+def write_translated(
+    english_dir: Path, out_dir: Path, variant: Variant, aya_fallback: bool = False
+) -> None:
     injection = json.loads((english_dir / INJECTION_FILE).read_text())
     sources = [injection["injected_prompt"], *injection["ignore_sentences"]]
     cases = {}
@@ -52,11 +74,16 @@ def write_translated(english_dir: Path, out_dir: Path, variant: Variant) -> None
         sources += [ENHANCED_PREFIX, *sorted(instructions)]
     from lost_in_injection.translate import translate_or_rewrite  # Needs the GPU models.
 
-    records = translate_or_rewrite(sources, english_dir.parent, variant)
+    path = out_dir / "translations.jsonl"
+    if aya_fallback:
+        records = [json.loads(line) for line in path.read_text().splitlines()]
+        if [record["source"] for record in records] != sources:
+            raise ValueError(f"{path} was written for different sources")
+        records = with_aya_fallback(records, english_dir.parent, variant)
+    else:
+        records = translate_or_rewrite(sources, english_dir.parent, variant)
     out_dir.mkdir(parents=True, exist_ok=True)
-    (out_dir / "translations.jsonl").write_text(
-        "".join(json.dumps(record, ensure_ascii=False) + "\n" for record in records)
-    )
+    path.write_text("".join(json.dumps(record, ensure_ascii=False) + "\n" for record in records))
     failed = [record["source"] for record in records if record["translation"] is None]
     if failed:
         raise SystemExit(f"{variant.name}: {len(failed)} texts failed the gates: {failed}")
@@ -89,12 +116,15 @@ def main() -> None:
     parser.add_argument("--raw", type=Path, default=Path("data/raw"))
     parser.add_argument("--out", type=Path, default=Path("data/eval"))
     parser.add_argument("--variants", nargs="+", default=["english"])
+    parser.add_argument("--aya-fallback", action="store_true")
     args = parser.parse_args()
     for name in args.variants:
         if name == "english":
             write_english(args.raw, args.out / name)
         else:
-            write_translated(args.out / "english", args.out / name, BY_NAME[name])
+            write_translated(
+                args.out / "english", args.out / name, BY_NAME[name], args.aya_fallback
+            )
 
 
 if __name__ == "__main__":
