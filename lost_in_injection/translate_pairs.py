@@ -7,12 +7,11 @@ records, with every candidate and gate value, go to `<out>/<language>/translatio
 """
 
 import argparse
-import json
 from pathlib import Path
 
 from lost_in_injection.languages import BY_NAME
+from lost_in_injection.records import read_jsonl, write_jsonl
 from lost_in_injection.runs import MULTILINGUAL_SLOTS, TRAINING_LANGUAGES
-from lost_in_injection.skeleton import read_jsonl
 from lost_in_injection.translate import translate_or_rewrite
 
 # About 15% headroom over the multilingual slots for texts that fail a gate in some language.
@@ -36,9 +35,7 @@ def main() -> None:
         records = translate_or_rewrite(texts, args.out, BY_NAME[name])
         out_dir = args.out / name
         out_dir.mkdir(parents=True, exist_ok=True)
-        (out_dir / "translations.jsonl").write_text(
-            "".join(json.dumps(record, ensure_ascii=False) + "\n" for record in records)
-        )
+        write_jsonl(out_dir / "translations.jsonl", records)
         passed = sum(record["translation"] is not None for record in records)
         print(f"{name}: {passed} of {len(records)} texts passed the gates", flush=True)
 

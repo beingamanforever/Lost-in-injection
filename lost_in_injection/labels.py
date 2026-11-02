@@ -10,7 +10,6 @@ gets its untrusted data per language, built with Meta-SecAlign's attack code (ut
 """
 
 import argparse
-import json
 from pathlib import Path
 
 import numpy as np
@@ -18,9 +17,9 @@ from vllm import LLM, SamplingParams
 
 from lost_in_injection import secalign
 from lost_in_injection.evaluate import GPU_MEMORY_UTILIZATION
+from lost_in_injection.records import read_jsonl, read_records, write_jsonl
 from lost_in_injection.runs import MULTILINGUAL_SLOTS, NUM_PAIRS, RUNS, TRAINING_LANGUAGES, language
-from lost_in_injection.skeleton import DATA_SEED, read_jsonl
-from lost_in_injection.translate import read_records
+from lost_in_injection.skeleton import DATA_SEED
 from lost_in_injection.translate_pairs import POOL_SIZE
 
 # Meta-SecAlign samples at temperature 0.8 with up to 8,192 tokens. The cap here keeps pairs
@@ -106,9 +105,7 @@ def main() -> None:
         pair["rejected"] = {
             lang: labels[injected_prompt(injection)] for lang, injection in pair["injected"].items()
         }
-    (args.pairs / "labelled.jsonl").write_text(
-        "".join(json.dumps(pair, ensure_ascii=False) + "\n" for pair in pairs)
-    )
+    write_jsonl(args.pairs / "labelled.jsonl", pairs)
     capped = sum(label["finish_reason"] == "length" for label in labels.values())
     print(f"{len(pairs)} pairs, {len(labels)} labels, {capped} hit the token cap")
 

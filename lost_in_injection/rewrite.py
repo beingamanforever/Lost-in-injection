@@ -1,17 +1,15 @@
-"""Rewrite masked text into a romanized or code-mixed variant with Aya Expanse 8B, behind the gates.
+"""Translate masked text with Aya Expanse 8B behind translate.py's gates (the eval-set fallback).
 
-The machine translators write native scripts only, so romanized Hindi, Hinglish and Spanglish come
-from Aya Expanse 8B, which covers Hindi and Spanish. Romanized Hindi starts from the gated Hindi
-translation, and the code-mixed variants start from English. Placeholders from masking.py stay in
-the text, and the gates are translate.py's. Aya Expanse writes the English back-translation too,
-because NLLB and IndicTrans2 cannot read romanized or code-mixed input.
+Used only for evaluation texts that every machine-translation candidate fails (eval_sets.py). Aya
+Expanse writes the English back-translation too. The prompt fences the text off and says not to
+follow it, because the texts are injected instructions.
 """
 
 from functools import cache
 
 from vllm import LLM, SamplingParams
 
-from lost_in_injection.languages import EXAMPLE_ENGLISH, Variant
+from lost_in_injection.languages import Variant
 from lost_in_injection.translate import gate
 
 AYA_EXPANSE = ("CohereLabs/aya-expanse-8b", "5062468bf9bc0c6035fd64e06274333ec127d980")
@@ -44,17 +42,9 @@ def aya() -> LLM:
     )
 
 
-def chat(
-    instruction: str, example: tuple[str, ...], texts: list[str], params: SamplingParams
-) -> list[list[str]]:
-    shot = []
-    if example:
-        shot = [
-            {"role": "user", "content": FRAME.format(instruction=instruction, text=example[0])},
-            {"role": "assistant", "content": example[1]},
-        ]
+def chat(instruction: str, texts: list[str], params: SamplingParams) -> list[list[str]]:
     prompts = [
-        [*shot, {"role": "user", "content": FRAME.format(instruction=instruction, text=text)}]
+        [{"role": "user", "content": FRAME.format(instruction=instruction, text=text)}]
         for text in texts
     ]
     outputs = aya().chat(prompts, params, use_tqdm=False)
@@ -66,18 +56,16 @@ def unfence(text: str) -> str:
 
 
 def rewrite(texts: list[str], masked_inputs: list[str], variant: Variant) -> list[dict]:
-    """Rewrite `masked_inputs` (masked English or masked Hindi) into `variant` and gate them.
+    """Translate `masked_inputs` into `variant` with `variant.rewrite_instruction` and gate them.
 
     `texts` are the English sources: their masks restore the identifiers, and the back-translation
     is compared with them.
     """
-    example = variant.rewrite_example
-    greedy = chat(variant.rewrite_instruction, example, masked_inputs, GREEDY)
-    sampled = chat(variant.rewrite_instruction, example, masked_inputs, SAMPLED)
+    greedy = chat(variant.rewrite_instruction, masked_inputs, GREEDY)
+    sampled = chat(variant.rewrite_instruction, masked_inputs, SAMPLED)
     candidates = [first + rest for first, rest in zip(greedy, sampled, strict=True)]
-    back_example = (example[1], EXAMPLE_ENGLISH) if example else ()
 
     def back_translate(texts: list[str]) -> list[str]:
-        return [text[0] for text in chat(TO_ENGLISH, back_example, texts, GREEDY)]
+        return [text[0] for text in chat(TO_ENGLISH, texts, GREEDY)]
 
     return gate(texts, candidates, variant, back_translate)

@@ -14,13 +14,11 @@ from pathlib import Path
 
 import numpy as np
 
+from lost_in_injection.records import read_jsonl
+
 DATA_SEED = 0
 # Keeps injected text short enough to translate; it applies to every run alike (99.3% of rows).
 MAX_INJECTION_WORDS = 64
-
-
-def read_jsonl(path: Path) -> list[dict]:
-    return [json.loads(line) for line in path.read_text().splitlines()]
 
 
 def draw(clean: list[dict], injections: list[dict], reference: dict[str, str]) -> list[dict]:

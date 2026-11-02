@@ -10,24 +10,16 @@ train on the same pairs. CuratorKIT's export is checked to match the rows exactl
 """
 
 import argparse
-import json
 from pathlib import Path
 
 from curatorkit import Curator, CuratorConfig
 from transformers import AutoTokenizer
 
 from lost_in_injection.languages import BY_NAME
+from lost_in_injection.records import read_jsonl, write_jsonl
 from lost_in_injection.runs import RUNS, language
 
 MAX_TOKENS = 2048  # Pairs longer than this are dropped, not truncated.
-
-
-def read_jsonl(path: Path) -> list[dict]:
-    return [json.loads(line) for line in path.read_text().splitlines()]
-
-
-def write_jsonl(path: Path, rows: list[dict]) -> None:
-    path.write_text("".join(json.dumps(row, ensure_ascii=False) + "\n" for row in rows))
 
 
 def end_of_reply(tokenizer) -> str:

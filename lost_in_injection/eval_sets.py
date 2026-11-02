@@ -50,9 +50,7 @@ def with_aya_fallback(records: list[dict], root: Path, variant: Variant) -> list
 
     failed = [record["source"] for record in records if record["translation"] is None]
     instruction = f"Translate this text into {variant.name.title()}."
-    aya = replace(
-        variant, translator="aya", rewrite_from="english", rewrite_instruction=instruction
-    )
+    aya = replace(variant, translator="aya", rewrite_instruction=instruction)
     retried = {r["source"]: r for r in translate_or_rewrite(failed, root, aya)}
     return [
         {**retried[r["source"]], "fallback": "aya-expanse-8b", "machine_translation": r}

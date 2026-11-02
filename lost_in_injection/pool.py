@@ -15,11 +15,9 @@ from pathlib import Path
 from curatorkit import Curator, CuratorConfig
 from datasets import load_dataset
 
+from lost_in_injection.records import write_jsonl
+
 ALPACA_CLEANED = ("yahma/alpaca-cleaned", "12567cabf869d7c92e573c7c783905fc160e9639")
-
-
-def write_jsonl(path: Path, rows: list[dict]) -> None:
-    path.write_text("".join(json.dumps(row, ensure_ascii=False) + "\n" for row in rows))
 
 
 def curate(rows: list[dict], out_dir: Path) -> None:

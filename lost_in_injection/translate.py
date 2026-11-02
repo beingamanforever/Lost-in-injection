@@ -13,7 +13,6 @@ best-ranked candidate that passes every gate is kept:
 Every candidate is returned with its gate values, so callers save a full audit record.
 """
 
-import json
 import re
 from collections.abc import Callable
 from functools import cache
@@ -28,6 +27,7 @@ from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 
 from lost_in_injection.languages import Variant
 from lost_in_injection.masking import PLACEHOLDER, mask, unmask
+from lost_in_injection.records import chosen_candidate, masked_translation, read_jsonl, read_records
 
 # Hugging Face repositories at pinned revisions.
 NLLB = ("facebook/nllb-200-3.3B", "1a07f7d195896b2114afcb79b7b57ab512e7b43e")
@@ -221,24 +221,56 @@ def translate(texts: list[str], variant: Variant) -> list[dict]:
     return gate(texts, candidates, variant, back_translate)
 
 
-def read_records(path: Path) -> dict[str, dict]:
-    return {r["source"]: r for r in map(json.loads, path.read_text().splitlines())}
+def inherited_back_translation(candidates: list[list[str]], bases: list[dict | None]):
+    """Back-translation function that returns each base translation's gated back-translation.
 
-
-def masked_translation(record: dict) -> str:
-    return next(c["masked"] for c in record["candidates"] if c["restored"] == record["translation"])
+    Romanized and code-mixed text keeps its base translation's meaning word for word, so its
+    meaning gate reuses the base's back-translation instead of a second model hop.
+    """
+    back = {
+        candidate: chosen_candidate(base)["back_translation"]
+        for text_candidates, base in zip(candidates, bases, strict=True)
+        if base is not None
+        for candidate in text_candidates
+    }
+    return lambda texts: [back[text] for text in texts]
 
 
 def translate_or_rewrite(sources: list[str], root: Path, variant: Variant) -> list[dict]:
-    """Translate or rewrite English sources into `variant`; rewrites read their input variant
-    from `root/<variant>/translations.jsonl`."""
-    if variant.translator != "aya":
+    """Produce gated `variant` text for English sources. Romanized and code-mixed variants read
+    their base variants from `root/<variant>/`."""
+    if variant.translator in ("nllb", "indictrans2"):
         return translate(sources, variant)
-    from lost_in_injection.rewrite import rewrite  # Imported here: rewrite imports this module.
+    if variant.translator == "aya":
+        from lost_in_injection.rewrite import rewrite  # Imported here: rewrite imports this module.
 
-    if variant.rewrite_from == "english":
-        inputs = [mask(source)[0] for source in sources]
-    else:
-        records = read_records(root / variant.rewrite_from / "translations.jsonl")
-        inputs = [masked_translation(records[source]) for source in sources]
-    return rewrite(sources, inputs, variant)
+        return rewrite(sources, [mask(source)[0] for source in sources], variant)
+
+    def base_records(name: str) -> list[dict | None]:
+        records = read_records(root / name / "translations.jsonl")
+        return [records[s] if records.get(s, {}).get("translation") else None for s in sources]
+
+    if variant.translator == "xlit":
+        romanized = {
+            r["source"]: r["masked"] for r in read_jsonl(root / variant.name / "romanized.jsonl")
+        }
+        bases = base_records(variant.rewrite_from)
+        candidates = [
+            [romanized[s]] if base and s in romanized else []
+            for s, base in zip(sources, bases, strict=True)
+        ]
+        return gate(sources, candidates, variant, inherited_back_translation(candidates, bases))
+
+    from lost_in_injection.codemix import switch  # Needs SimAlign's aligner model.
+
+    bases = base_records(variant.rewrite_from)
+    aligned = base_records(variant.align_from)
+    candidates = []
+    for source, base, align in zip(sources, bases, aligned, strict=True):
+        mixed = (
+            base
+            and align
+            and switch(mask(source)[0], masked_translation(align), masked_translation(base))
+        )
+        candidates.append([mixed] if mixed else [])
+    return gate(sources, candidates, variant, inherited_back_translation(candidates, aligned))
