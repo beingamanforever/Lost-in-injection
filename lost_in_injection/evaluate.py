@@ -28,6 +28,8 @@ ALPACA_ATTACKS = [
     "completion_ignore",
 ]
 INJECAGENT_DEFENSE = "sandwich"  # Meta-SecAlign's InjecAgent protocol (run_tests.py:23).
+# Full InjecAgent costs about 75 minutes per variant, so it runs on these four for every model.
+INJECAGENT_VARIANTS = {"english", "hindi", "romanized-hindi", "urdu"}
 
 
 class SharedGpuLLM(LLM):
@@ -102,6 +104,8 @@ def evaluate(
                 instruction_hierarchy=input_role,
             )
         )
+        if variant not in INJECAGENT_VARIANTS:
+            continue
         injecagent.main(
             {
                 "model_name_or_path": str(work),

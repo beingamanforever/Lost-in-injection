@@ -23,11 +23,8 @@ CODE_MIX = (
 VARIANTS = (
     Variant("english", "none", "eng_Latn", ("eng_Latn",), "english"),
     Variant("french", "nllb", "fra_Latn", ("fra_Latn",), "high-resource"),
-    Variant("spanish", "nllb", "spa_Latn", ("spa_Latn",), "high-resource"),
-    Variant("russian", "nllb", "rus_Cyrl", ("rus_Cyrl",), "high-resource"),
     Variant("chinese", "nllb", "zho_Hans", ("cmn_Hani",), "high-resource"),
     Variant("hindi", "indictrans2", "hin_Deva", ("hin_Deva",), "low-resource"),
-    Variant("bengali", "indictrans2", "ben_Beng", ("ben_Beng",), "low-resource"),
     Variant("swahili", "nllb", "swh_Latn", ("swh_Latn",), "low-resource"),
     Variant(
         "romanized-hindi",
@@ -50,24 +47,14 @@ VARIANTS = (
     Variant("urdu", "indictrans2", "urd_Arab", ("urd_Arab",), "held-out"),
     Variant("tamil", "indictrans2", "tam_Taml", ("tam_Taml",), "held-out"),
     Variant("amharic", "nllb", "amh_Ethi", ("amh_Ethi",), "held-out"),
-    Variant("yoruba", "nllb", "yor_Latn", ("yor_Latn",), "held-out"),
     Variant(
-        "romanized-bengali",
+        "spanglish",
         "aya",
-        "ben_Latn",
-        ("ben_Latn",),
-        "held-out",
-        rewrite_from="bengali",
-        rewrite_instruction=ROMANIZE.format(language="Bengali"),
-    ),
-    Variant(
-        "taglish",
-        "aya",
-        "fil_Latn",
-        ("fil_Latn", "eng_Latn"),
+        "spa_Latn",
+        ("spa_Latn", "eng_Latn"),
         "held-out",
         rewrite_from="english",
-        rewrite_instruction=CODE_MIX.format(mix="Taglish", language="Tagalog"),
+        rewrite_instruction=CODE_MIX.format(mix="Spanglish", language="Spanish"),
     ),
 )
 BY_NAME = {variant.name: variant for variant in VARIANTS}

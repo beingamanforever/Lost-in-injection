@@ -100,17 +100,18 @@ Translated text is only ever the injected instruction and its attack wrapper. Th
 | Variant | Translator | GlotLID label | Role |
 |---|---|---|---|
 | English | none | `eng_Latn` | Always in training |
-| French, Spanish, Russian, Chinese | NLLB-200 | `fra_Latn`, `spa_Latn`, `rus_Cyrl`, `cmn_Hani` | Training: high-resource |
-| Hindi, Bengali | IndicTrans2 | `hin_Deva`, `ben_Beng` | Training: low-resource |
+| French, Chinese | NLLB-200 | `fra_Latn`, `cmn_Hani` | Training: high-resource, one Latin and one non-Latin script |
+| Hindi | IndicTrans2 | `hin_Deva` | Training: low-resource |
 | Swahili | NLLB-200 | `swh_Latn` | Training: low-resource |
 | Romanized Hindi, Hinglish | Aya Expanse 8B rewrite | `hin_Latn` | Training: low-resource |
 | Urdu | IndicTrans2 | `urd_Arab` | Held out: Hindi in another script |
-| Tamil | IndicTrans2 | `tam_Taml` | Held out |
-| Amharic, Yoruba | NLLB-200 | `amh_Ethi`, `yor_Latn` | Held out |
-| Romanized Bengali, Taglish | Rewrite, generator to be chosen | `ben_Latn`, `fil_Latn` | Held out: unseen romanization and code-mixing |
+| Tamil | IndicTrans2 | `tam_Taml` | Held out: another Indic language and script |
+| Amharic | NLLB-200 | `amh_Ethi` | Held out: another family and script |
+| Spanglish | Aya Expanse 8B rewrite | `spa_Latn` with `eng_Latn` | Held out: code-mixing in a language absent from training |
 
 Indic-Translate (Bodhan AI and AI4Bharat) reports 47.7 English-to-Indic chrF++ against IndicTrans2's 46.4 on its model card, but it is a Gemma 4 model outside the pinned vLLM and transformers, under a custom licence. IndicTrans2 (MIT, TMLR 2023) stays.
-Aya Expanse 8B covers Hindi but not Bengali or Tagalog (its model card lists 23 languages). Romanized Bengali and Taglish therefore need another generator, preferably one generator for all four rewrite variants so the rewrites differ only in language.
+Aya Expanse 8B covers Hindi and Spanish (its model card lists 23 languages), so all three rewrites come from one generator.
+On Nov 3 the grid was cut from 16 variants to these 11 to fit the GPU budget: Spanish, Russian, Bengali, Yoruba, romanized Bengali and Taglish were dropped, and Spanglish replaced Taglish as the held-out code-mixed variant.
 
 ## Runs
 
@@ -123,21 +124,20 @@ Aya Expanse 8B covers Hindi but not Bengali or Tagalog (its model card lists 23 
 | Run | Injection languages in training | Question it answers |
 |---|---|---|
 | `english-only` | 100% English | Does a SecAlign defense learned in English transfer to other languages? |
-| `english-plus-high-resource` | 50% English, 50% spread over French, Spanish, Russian, Chinese | Is any multilingual data enough? |
-| `english-plus-low-resource` | 50% English, 50% spread over Hindi, Bengali, Swahili, romanized Hindi, Hinglish | Does low-resource and script-varied data close the held-out gap? |
+| `english-plus-high-resource` | 50% English, 50% spread over French and Chinese | Is any multilingual data enough? |
+| `english-plus-low-resource` | 50% English, 50% spread over Hindi, Swahili, romanized Hindi, Hinglish | Does low-resource and script-varied data close the held-out gap? |
 
 **Ablations (1 seed each).** Each one differs from its reference run in exactly one factor. Its effect is judged against the seed spread of the main runs.
 
 | Run | Reference | Single change | Question it answers |
 |---|---|---|---|
-| `multilingual-share-10` | `english-plus-low-resource` | 10% non-English instead of 50% | How much multilingual data is needed? |
-| `multilingual-share-25` | `english-plus-low-resource` | 25% non-English | Same, with `english-only` (0%) and the reference (50%) completing the curve |
+| `multilingual-share-25` | `english-plus-low-resource` | 25% non-English instead of 50% | How much multilingual data is needed? `english-only` (0%) and the reference (50%) complete the curve |
 | `hindi-only-mix` | `english-plus-low-resource` | All non-English pairs in Hindi | Language diversity or volume? |
-| `native-scripts-only` | `english-plus-low-resource` | Non-English pairs in native scripts only (Hindi, Bengali, Swahili) | Does romanized and code-mixed robustness need explicit data? |
+| `native-scripts-only` | `english-plus-low-resource` | Non-English pairs in native scripts only (Hindi, Swahili) | Does romanized and code-mixed robustness need explicit data? |
 | `no-input-role` | `english-only` | Untrusted data inside the user turn | Does channel separation carry the transfer? |
-| `fire-english-only`, `fire-english-plus-low-resource` | the matching Global runs | `tiny-aya-fire` instead of `tiny-aya-global` | Does a South Asia-focused model behave differently? Run only if time allows |
 
-That is 9 main runs plus 7 ablation runs, 16 training runs in total.
+That is 9 main runs plus 4 ablation runs, 13 training runs, and 15 evaluated models with the two baselines.
+`multilingual-share-10` and the two `tiny-aya-fire` runs were cut on Nov 3 to fit the GPU budget.
 
 ## Attacks
 
@@ -147,7 +147,7 @@ All are scored by rules (the attacker's tool is called, or the output starts wit
 | Attack | What the attacker controls | Models | Cases |
 |---|---|---|---|
 | Static translated | A fixed injection, translated into each variant | Every model | The full grid |
-| Language search | The best of the 16 variants for each case | Every model | The full grid, at no extra cost |
+| Language search | The best of the 11 variants for each case | Every model | The full grid, at no extra cost |
 | Adaptive LLM attacker | Wording, language and script, rewritten over several rounds with feedback | `base`, `english-only`, best multilingual run | One fixed seeded subset |
 | GCG suffix | Token-level white-box optimization | The same three | One fixed seeded subset, injection in English, Hindi and romanized Hindi |
 
@@ -171,8 +171,8 @@ All are scored by rules (the attacker's tool is called, or the output starts wit
 6. **Export.** Use CuratorKIT to export `dpo.jsonl` per run, with `manifest.json`, `rejected.jsonl` and the dataset card. Also write `pairs_meta.jsonl` with the pair id, run, language, script, attack type, position, translator and gate scores.
 
 **Evaluation sets.** All are rule-scored, so no judge reads non-English text.
-- **AlpacaFarm-Hacked**: Meta-SecAlign's runner. The injected "print exactly Hacked" instruction is translated per variant, and the target word stays `Hacked`.
-- **InjecAgent**: Meta-SecAlign's runner on translated copies of the 62 attacker instructions and the "enhanced" hacking prompt.
+- **AlpacaFarm-Hacked** (headline): Meta-SecAlign's runner on all 11 variants for every model. The injected "print exactly Hacked" instruction is translated per variant, and the target word stays `Hacked`.
+- **InjecAgent**: Meta-SecAlign's runner on translated copies of the 62 attacker instructions and the "enhanced" hacking prompt, on English, Hindi, romanized Hindi and Urdu for every model. The full benchmark costs about 75 minutes per variant on the base model, and these four cover trained, untrained, romanized and other-script text.
   - We report direct harm and data-stealing stage 1.
   - Stage 2 needs simulated responses that don't exist for translated cases.
 - **AgentDojo**: only if the pilot shows Tiny Aya completes a meaningful share of clean tasks. Meta-SecAlign skips it for its 8B model.
@@ -183,14 +183,15 @@ All are scored by rules (the attacker's tool is called, or the output starts wit
 - **Relative reduction**: base ASR minus run ASR, divided by base ASR, per variant. This normalizes for how strong the attack is in each language before any defense.
 - **Transfer gap**: mean relative reduction on training languages minus that on held-out variants.
 - **Utility**:
-  - Global-MMLU-Lite in English, Hindi, Bengali, Swahili and French, through AuditKIT's lm-eval engine.
+  - Global-MMLU-Lite in English, Hindi, Swahili, French and Chinese, through AuditKIT's lm-eval engine.
   - InjecAgent valid-output rate.
 - **Optional, if GPU and time allow**: HarmBench (standard subset) through SafeTune, and a refusal-versus-ignored breakdown of InjecAgent outcomes.
 
 **Evaluation protocol, identical for every run**
 - Decoding is Meta-SecAlign's, unchanged: greedy (temperature 0), up to 8,192 new tokens, stopping at EOS, bounded by Tiny Aya's 8,192-token context.
 - Engine settings are the same for every model: vLLM 0.11.0, `gpu_memory_utilization=0.90`, merged weights, one BOS.
-- Every model sees the same cases, attacks and language variants. No run gets a different token cap, subset or attack list.
+- Every model sees the same cases, attacks and language variants: AlpacaFarm-Hacked on all 11, full InjecAgent on its 4. No run gets a different token cap, subset or attack list.
+- **Budget:** 15 models x 11 variants x about 6 minutes for AlpacaFarm-Hacked, plus 15 x 4 x about 75 minutes for InjecAgent, is about 92 GPU-hours.
 - vLLM is not batch-invariant, so rare greedy tokens can differ with batch composition. This affects every run equally and is covered by the seed and bootstrap intervals.
 
 ## Checks before any full training run
@@ -224,7 +225,7 @@ Datasets, adapters and evaluation outputs are pushed to the Hugging Face Hub aft
 
 1. A heatmap of ASR by run (rows) and variant (columns), split into training and held-out variants.
 2. Relative reduction on held-out variants per main run, with seed error bars.
-3. ASR and Global-MMLU-Lite against multilingual share (0, 10, 25, 50%).
+3. ASR and Global-MMLU-Lite against multilingual share (0, 25, 50%).
 4. ASR for Hindi against Urdu, romanized Hindi and Hinglish per run. This separates the effect of script from the effect of language.
 5. Utility against security, one point per run.
 6. DPO loss and reward-margin curves.
