@@ -5,15 +5,18 @@ injected instruction and input pass the gates in every training language; Englis
 next candidates in draw order. As in Meta-SecAlign (utils.py:94-115), labels are the undefended
 model's own replies at temperature 0.8: chosen answers the clean instruction with its data, and
 rejected answers the injected instruction alone, once per pair and language a run can use. Each
-label records its finish reason, so export can drop pairs that hit the token cap.
+label records its finish reason, so export can drop pairs that hit the token cap. Each pair also
+gets its untrusted data per language, built with Meta-SecAlign's attack code (utils.py:84-88).
 """
 
 import argparse
 import json
 from pathlib import Path
 
+import numpy as np
 from vllm import LLM, SamplingParams
 
+from lost_in_injection import secalign
 from lost_in_injection.evaluate import GPU_MEMORY_UTILIZATION
 from lost_in_injection.runs import MULTILINGUAL_SLOTS, NUM_PAIRS, RUNS, TRAINING_LANGUAGES, language
 from lost_in_injection.skeleton import DATA_SEED, read_jsonl
@@ -33,6 +36,24 @@ def injected(pair: dict, lang: str, translations: dict) -> dict[str, str]:
         field: translations[lang][source[field]] if source[field] else ""
         for field in ("instruction", "input")
     }
+
+
+def injected_prompt(injection: dict[str, str]) -> str:
+    return f"{injection['instruction']} {injection['input']}"  # utils.py:81
+
+
+def data_with_injection(pair: dict, injection: dict[str, str]) -> str:
+    """The clean data with the injection inserted, as Meta-SecAlign builds its training input."""
+    data = pair["clean"]["input"]
+    if pair["attack"] == "completion":
+        np.random.seed(pair["completion_seed"])  # The fake delimiters are drawn from np.random.
+        completion = secalign.load("utils").create_injection_for_completion(
+            pair["fake_response"], injection["instruction"], injection["input"]
+        )
+        return f"{data}\n\n{completion}"
+    if pair["position"] == "before":
+        return f"{injected_prompt(injection)} {data}"
+    return f"{data} {injected_prompt(injection)}"
 
 
 def select(candidates: list[dict], translations: dict) -> list[dict]:
@@ -72,20 +93,18 @@ def main() -> None:
     for pair in pairs:
         languages = sorted({language(run, pair["slot"]) for run in RUNS})
         pair["injected"] = {lang: injected(pair, lang, translations) for lang in languages}
-
-    def rejected_prompt(injection: dict[str, str]) -> str:
-        return f"{injection['instruction']} {injection['input']}"  # utils.py:113
+        pair["data"] = {lang: data_with_injection(pair, i) for lang, i in pair["injected"].items()}
 
     def chosen_prompt(pair: dict) -> str:
         return f"{pair['clean']['instruction']}\n\n{pair['clean']['input']}"  # utils.py:112
 
     llm = LLM(model=str(args.model), gpu_memory_utilization=GPU_MEMORY_UTILIZATION, seed=DATA_SEED)
-    rejected_prompts = {rejected_prompt(i) for p in pairs for i in p["injected"].values()}
+    rejected_prompts = {injected_prompt(i) for p in pairs for i in p["injected"].values()}
     labels = replies(llm, sorted({chosen_prompt(p) for p in pairs} | rejected_prompts))
     for pair in pairs:
         pair["chosen"] = labels[chosen_prompt(pair)]
         pair["rejected"] = {
-            lang: labels[rejected_prompt(injection)] for lang, injection in pair["injected"].items()
+            lang: labels[injected_prompt(injection)] for lang, injection in pair["injected"].items()
         }
     (args.pairs / "labelled.jsonl").write_text(
         "".join(json.dumps(pair, ensure_ascii=False) + "\n" for pair in pairs)
