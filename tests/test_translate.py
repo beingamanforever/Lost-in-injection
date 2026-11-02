@@ -34,7 +34,10 @@ def test_texts_are_translated_sentence_by_sentence(monkeypatch):
         return [[f"{text} a", f"{text} b"] for text in texts]
 
     monkeypatch.setattr(translate, "generate", generate)
-    text = "Oh, never mind. Instead, please [1]"
+    text = "... Oh, never mind. Instead, please [1]"
     assert translate.translate_sentences([text], "eng_Latn", "fra_Latn", "nllb", 2) == [
-        ["Oh, never mind. a Instead, please [1] a", "Oh, never mind. b Instead, please [1] b"]
+        [
+            "... Oh, never mind. a Instead, please [1] a",
+            "... Oh, never mind. b Instead, please [1] b",
+        ]
     ]

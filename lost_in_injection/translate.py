@@ -120,13 +120,19 @@ def generate(
 def translate_sentences(
     texts: list[str], src: str, tgt: str, translator: str, num_return: int
 ) -> list[list[str]]:
-    """Translate texts sentence by sentence; candidate k joins each sentence's k-th candidate."""
+    """Translate texts sentence by sentence; candidate k joins each sentence's k-th candidate.
+
+    Pieces without letters, such as "..." or a lone placeholder, are copied: there is nothing to
+    translate, and the models degenerate on them.
+    """
     sentences = [[s for s in SENTENCE_END.split(text) if s.strip()] for text in texts]
-    flat = generate([s for text in sentences for s in text], src, tgt, translator, num_return)
-    candidates, start = [], 0
+    has_words = [s for text in sentences for s in text if any(c.isalpha() for c in s)]
+    translated = iter(generate(has_words, src, tgt, translator, num_return))
+    candidates = []
     for text in sentences:
-        per_sentence = flat[start : start + len(text)]
-        start += len(text)
+        per_sentence = [
+            next(translated) if any(c.isalpha() for c in s) else [s] * num_return for s in text
+        ]
         count = min(map(len, per_sentence), default=0)
         candidates.append([" ".join(s[k] for s in per_sentence) for k in range(count)])
     return candidates
