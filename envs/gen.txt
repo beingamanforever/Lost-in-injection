@@ -1,3 +1,7 @@
 # vLLM generation, translation and Meta-SecAlign evaluation (Python 3.12).
 -r ../third_party/Meta_SecAlign/requirements.txt
 pytest==8.4.2
+# Translation gates. Resolved with torch, vLLM, transformers and numpy held at Meta-SecAlign's pins.
+indictranstoolkit==1.1.1
+fasttext==0.9.3
+sentence-transformers==5.7.0
