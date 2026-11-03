@@ -1,6 +1,7 @@
 # Source on the A10G before any command: the root disk is full, so every cache lives on NVMe.
 export PROJECT_ROOT=/opt/dlami/nvme/aman/lost-in-injection
 export HF_HOME=/opt/dlami/nvme/aman/hf
+export NLTK_DATA=/opt/dlami/nvme/aman/nltk-data
 export UV_CACHE_DIR=/opt/dlami/nvme/aman/uv-cache
 export UV_PYTHON_INSTALL_DIR=/opt/dlami/nvme/aman/uv-python
 export TMPDIR=/opt/dlami/nvme/aman/tmp

@@ -114,7 +114,13 @@ Translated text is only ever the injected instruction and its attack wrapper. Th
 Indic-Translate (Bodhan AI and AI4Bharat) reports 47.7 English-to-Indic chrF++ against IndicTrans2's 46.4 on its model card, but it is a Gemma 4 model outside the pinned vLLM and transformers, under a custom licence. IndicTrans2 (MIT, TMLR 2023) stays.
 Romanized and code-mixed text is derived from gated translations, so it keeps their meaning word for word:
 - **Romanized Hindi** is AI4Bharat's IndicXlit (trained on human-typed romanizations) run on the masked Hindi. Hindi and romanized Hindi therefore differ only in script.
-- **Code-mixing** aligns the masked English with the gated translation using SimAlign (mBERT, itermax). Of the English words of four or more letters that align one-to-one, every second one replaces its aligned word. Hinglish applies this to romanized Hindi, so Hindi, romanized Hindi and Hinglish carry the same content and differ only in script and mixing. Spanglish applies it to NLLB Spanish, which is otherwise not used.
+  IndicXlit is also the romanizer behind RomanSetu (Husain et al., 2024). It often spells short function words as English look-alikes ("ack" for ek, "key" for ke, "haye" for hai, "kiss" for kis).
+  These spellings are kept as the tool gives them, the same in training and evaluation, and noted as a limitation.
+- **Code-mixing** aligns the masked English with the gated translation using SimAlign (mBERT, itermax). Every English noun and adjective that aligns one-to-one replaces its aligned word, and verbs and function words keep the translation's grammar.
+  This is insertional mixing in the sense of Myers-Scotton's matrix language frame, for example "diye gaye statement kaa answer yes yaa naheen mein dein" for "Indicate a yes or no answer to the given statement".
+  Parts of speech come from NLTK's perceptron tagger on lowercased words, so sentence-initial imperatives count as verbs.
+  The first rule (every second aligned word of four or more letters) was replaced on Nov 3 because it switched function words, as in "kaa What arth haye".
+  Hinglish applies this to romanized Hindi, so Hindi, romanized Hindi and Hinglish carry the same content and differ only in script and mixing. Spanglish applies it to NLLB Spanish, which is otherwise not used.
 - Aya Expanse 8B rewrites were tried first and dropped on Nov 3. They romanized well, but their two-hop meaning check rejected 7 of 75 texts, and Aya would not code-mix Spanish (1-3 of 12 texts mixed even with worked examples or explicit word lists).
 - Language ID accepts `hin_Latn` or `urd_Latn` for Latin-script Hindi, which is one spoken language with Urdu. Code-mixing is checked as the share of words kept verbatim from the English source, because word-level GlotLID is too noisy on single words.
 On Nov 3 the grid was cut from 16 variants to these 11 to fit the GPU budget: Spanish, Russian, Bengali, Yoruba, romanized Bengali and Taglish were dropped, and Spanglish replaced Taglish as the held-out code-mixed variant.
@@ -170,11 +176,13 @@ All are scored by rules (the attacker's tool is called, or the output starts wit
    - Injections: 51,833 kept of 52,002 (28 with an empty answer, 4 near duplicates, 38 secrets, 99 toxic).
    - The secrets gate is conservative: most of its drops are high-entropy URLs and sample passwords, not real keys.
 2. **Skeleton** (`skeleton.py`). Meta-SecAlign's draws are made once with data seed 0: clean-row order, one injection each, 90% straightforward at a random position, 10% completion. Each completion attack keeps its own seed for the fake delimiters, so they match across languages. Injections longer than 64 words (0.7% of Alpaca) are excluded from every run.
-3. **Translation** (`translate_pairs.py`). The instruction and input of the first 2,875 candidates are translated into all six training languages. Identifiers (emails, URLs, quoted spans, CamelCase names, tokens with digits) are masked first and must each come back exactly once. Translation is sentence by sentence, as both translators' pipelines do, and punctuation-only pieces are copied.
+3. **Translation** (`translate_pairs.py`). The instruction and input of the first 3,600 candidates are translated into all six training languages. Identifiers (emails, URLs, quoted spans, CamelCase names, tokens with digits) are masked first and must each come back exactly once. Translation is sentence by sentence, as both translators' pipelines do, and punctuation-only pieces are copied.
 4. **Quality gates.** A translation is kept only if all of these pass, and every candidate is logged with its values:
    - Identifiers intact.
    - GlotLID's top 3 for the translated words (identifiers removed) contain the target language, and both languages for code-mixed variants.
    - LaBSE cosine of 0.80 or more between the back-translation and the masked English source.
+   - On the first 2,875 candidates, 89-97% of texts passed per language (French 95%, Chinese 91%, Hindi 97%, Swahili 92%, Hinglish 89% under the first mixing rule), but only 2,164 candidates passed in all six.
+     The pool was grown to 3,600 for the 2,500 multilingual slots; existing machine translations are reused.
 5. **Pairs and labels** (`labels.py`). The multilingual slots are the first 2,500 candidates whose texts pass in every language; the English slots are the next 2,500. Chosen and rejected are self-generated with vLLM, once per unique prompt or injected text. Each pair's untrusted data per language is built with Meta-SecAlign's `create_injection_for_completion` and straightforward attack.
 6. **Export** (`export.py`). CuratorKIT exports `dpo.jsonl` per run, with `manifest.json`, `rejected.jsonl` and the dataset card, and the export is checked to match the rows exactly. `pairs_meta.jsonl` records the pair id, run, slot, language, translator, attack, position and source row ids.
 
