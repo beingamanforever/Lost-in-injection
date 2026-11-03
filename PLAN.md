@@ -166,6 +166,9 @@ All are scored by rules (the attacker's tool is called, or the output starts wit
 
 **Training pairs**
 1. **Rows** (`pool.py`). Clean rows and injected instructions come from Meta-SecAlign's sources. CuratorKIT runs MinHash dedup, its cleaner with `strip_html` off, and its local secrets and toxicity gates (Detoxify; rows scoring 0.5 or more are dropped). Its word-count gate only drops empty rows; `min_tokens` is 1 because the default of 10 would drop short Alpaca answers.
+   - Clean rows: 19,099 kept of 19,157 (10 exact and 5 near duplicates, 6 secrets, 37 toxic).
+   - Injections: 51,833 kept of 52,002 (28 with an empty answer, 4 near duplicates, 38 secrets, 99 toxic).
+   - The secrets gate is conservative: most of its drops are high-entropy URLs and sample passwords, not real keys.
 2. **Skeleton** (`skeleton.py`). Meta-SecAlign's draws are made once with data seed 0: clean-row order, one injection each, 90% straightforward at a random position, 10% completion. Each completion attack keeps its own seed for the fake delimiters, so they match across languages. Injections longer than 64 words (0.7% of Alpaca) are excluded from every run.
 3. **Translation** (`translate_pairs.py`). The instruction and input of the first 2,875 candidates are translated into all six training languages. Identifiers (emails, URLs, quoted spans, CamelCase names, tokens with digits) are masked first and must each come back exactly once. Translation is sentence by sentence, as both translators' pipelines do, and punctuation-only pieces are copied.
 4. **Quality gates.** A translation is kept only if all of these pass, and every candidate is logged with its values:
