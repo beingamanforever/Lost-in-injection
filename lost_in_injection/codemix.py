@@ -3,6 +3,8 @@
 Word alignments come from SimAlign (Jalili Sabet et al., 2020; mBERT, itermax) between the masked
 English source and the gated translation. Every English noun and adjective that aligns one-to-one
 with a translation word replaces it, while verbs and function words keep the translation's grammar.
+A second candidate also switches verbs and adverbs; the gate takes it only when the first has too
+few English words, as in "just kidding, don't actually do that".
 This is insertional code-mixing (Myers-Scotton's matrix language frame): English content words
 inside a Hindi or Spanish sentence, as in "diye gaye statement kaa answer yes yaa naheen mein dein".
 It keeps the gated meaning. Parts of speech come from NLTK's perceptron tagger on lowercased
@@ -17,7 +19,8 @@ import nltk
 from simalign import SentenceAligner
 
 PUNCTUATION = string.punctuation + "।॥¿¡“”‘’«»"
-CONTENT_TAGS = ("NN", "JJ")  # Penn Treebank nouns and adjectives
+NOUNS_AND_ADJECTIVES = ("NN", "JJ")  # Penn Treebank tag prefixes
+OPEN_CLASS = (*NOUNS_AND_ADJECTIVES, "VB", "RB")  # Also verbs and adverbs
 
 
 @cache
@@ -34,7 +37,9 @@ def one_to_one(pairs: list[tuple[int, int]]) -> list[tuple[int, int]]:
     return sorted((i, j) for i, j in pairs if sources[i] == 1 and targets[j] == 1)
 
 
-def switch(english: str, aligned: str, output: str, align=None) -> str | None:
+def switch(
+    english: str, aligned: str, output: str, word_classes=NOUNS_AND_ADJECTIVES, align=None
+) -> str | None:
     """Switch words of `output` back to English, using alignments to `aligned`.
 
     `output` is `aligned` itself or a word-for-word rewrite of it (romanized Hindi), so both must
@@ -49,6 +54,6 @@ def switch(english: str, aligned: str, output: str, align=None) -> str | None:
     tags = [tag for _, tag in nltk.pos_tag([w.lower() for w in english_cores])]
     for i, j in one_to_one(align(english_cores, aligned_cores)):
         word = core(output_words[j])
-        if word and english_cores[i].isalpha() and tags[i].startswith(CONTENT_TAGS):
+        if word and english_cores[i].isalpha() and tags[i].startswith(word_classes):
             output_words[j] = output_words[j].replace(word, english_cores[i], 1)
     return " ".join(output_words)

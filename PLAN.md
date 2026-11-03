@@ -119,6 +119,7 @@ Romanized and code-mixed text is derived from gated translations, so it keeps th
 - **Code-mixing** aligns the masked English with the gated translation using SimAlign (mBERT, itermax). Every English noun and adjective that aligns one-to-one replaces its aligned word, and verbs and function words keep the translation's grammar.
   This is insertional mixing in the sense of Myers-Scotton's matrix language frame, for example "diye gaye statement kaa answer yes yaa naheen mein dein" for "Indicate a yes or no answer to the given statement".
   Parts of speech come from NLTK's perceptron tagger on lowercased words, so sentence-initial imperatives count as verbs.
+  A second candidate also switches verbs and adverbs, and the gate takes it only when the first has under 10% English words; on Nov 3 this rescued 5 of the 24 Hinglish and Spanglish eval texts, such as "just kidding, don't actually do that".
   The first rule (every second aligned word of four or more letters) was replaced on Nov 3 because it switched function words, as in "kaa What arth haye".
   Hinglish applies this to romanized Hindi, so Hindi, romanized Hindi and Hinglish carry the same content and differ only in script and mixing. Spanglish applies it to NLLB Spanish, which is otherwise not used.
 - Aya Expanse 8B rewrites were tried first and dropped on Nov 3. They romanized well, but their two-hop meaning check rejected 7 of 75 texts, and Aya would not code-mix Spanish (1-3 of 12 texts mixed even with worked examples or explicit word lists).

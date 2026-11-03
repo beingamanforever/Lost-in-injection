@@ -274,16 +274,17 @@ def translate_or_rewrite(sources: list[str], root: Path, variant: Variant) -> li
         ]
         return gate(sources, candidates, variant, inherited_back_translation(candidates, bases))
 
-    from lost_in_injection.codemix import switch  # Needs SimAlign's aligner model.
+    # Needs SimAlign's aligner model.
+    from lost_in_injection.codemix import NOUNS_AND_ADJECTIVES, OPEN_CLASS, switch
 
     bases = base_records(variant.rewrite_from)
     aligned = base_records(variant.align_from)
     candidates = []
     for source, base, align in zip(sources, bases, aligned, strict=True):
-        mixed = (
-            base
-            and align
-            and switch(mask(source)[0], masked_translation(align), masked_translation(base))
-        )
-        candidates.append([mixed] if mixed else [])
+        if not (base and align):
+            candidates.append([])
+            continue
+        texts = (mask(source)[0], masked_translation(align), masked_translation(base))
+        mixed = [switch(*texts, classes) for classes in (NOUNS_AND_ADJECTIVES, OPEN_CLASS)]
+        candidates.append(list(dict.fromkeys(m for m in mixed if m)))  # In order, no repeats
     return gate(sources, candidates, variant, inherited_back_translation(candidates, aligned))
