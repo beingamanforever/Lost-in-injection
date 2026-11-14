@@ -117,7 +117,7 @@ CuratorKIT then exports the pairs, AlignTune trains, Meta-SecAlign's runners sco
 
 | Role | Model | Version, setting | License |
 |---|---|---|---|
-| Base and hardened model | `CohereLabs/tiny-aya-global` (3.35B) | Pinned revision; bf16; LoRA merged before evaluation | CC-BY-NC-4.0 |
+| Base and hardened model | `CohereLabs/tiny-aya-global` (3.35B) | Revision `af89d21`; bf16; LoRA merged before evaluation | CC-BY-NC-4.0 |
 | Translation | `facebook/nllb-200-3.3B` | French, Chinese, Swahili, Amharic, Spanish | CC-BY-NC-4.0 |
 | Translation | `ai4bharat/indictrans2-en-indic-1B` | Hindi, Urdu, Tamil | MIT |
 | Romanization | AI4Bharat IndicXlit | Hindi to Latin script | MIT |
@@ -462,3 +462,9 @@ The problem direction, the finding and the experimental plan are mine, worked ou
 ![Table A1](docs/figures/variants.png)
 
 *Table A1. One AlpacaFarm-Hacked injection in all 11 variants, as the model sees it. The payload is in red; the target word stays "Hacked".*
+
+### Security considerations
+
+- The adapters lower prompt-injection success but do not remove it: an attacker who tries every language still wins on 8.7-20.2% of cases, and adaptive attacks were not tested. In agents that can take harmful actions, treat them as one layer of defense, not a guarantee.
+- The defense relies on untrusted text arriving in the `input` role; we did not test text placed in the user's turn.
+- Every payload in the released sets is benign (printing "Hacked!", or InjecAgent's simulated tools), and the translated attack wrappers add no capability beyond the public AlpacaFarm-Hacked set.
