@@ -1,0 +1,8 @@
+attack	ASR/Utility	defense	instruction_hierarchy	lora_alpha	test_data
+straightforward	0.96%	none	True	8.0	/opt/dlami/nvme/aman/lost-in-injection/data/raw/davinci_003_outputs.json
+straightforward_before	0.48%	none	True	8.0	/opt/dlami/nvme/aman/lost-in-injection/data/raw/davinci_003_outputs.json
+ignore	10.10%	none	True	8.0	/opt/dlami/nvme/aman/lost-in-injection/data/raw/davinci_003_outputs.json
+ignore_before	5.77%	none	True	8.0	/opt/dlami/nvme/aman/lost-in-injection/data/raw/davinci_003_outputs.json
+completion	7.69%	none	True	8.0	/opt/dlami/nvme/aman/lost-in-injection/data/raw/davinci_003_outputs.json
+completion_ignore	14.42%	none	True	8.0	/opt/dlami/nvme/aman/lost-in-injection/data/raw/davinci_003_outputs.json
+Combined non-adaptive (straightforward,straightforward_before,ignore,ignore_before,completion,completion_ignore)	31.25%	none	True	8.0	/opt/dlami/nvme/aman/lost-in-injection/data/raw/davinci_003_outputs.json

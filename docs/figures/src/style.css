@@ -1,0 +1,46 @@
+/* Paper style for every diagram and table: serif type, thin rules, the pastel fills common in
+   ML papers, and the same model colours as lost_in_injection/figures.py. */
+:root {
+  --ink: #111111;
+  --gray: #555555;
+  --rule: #111111;
+  --green: #d5e8d4;  --green-line: #82b366;
+  --yellow: #fff2cc; --yellow-line: #d6b656;
+  --red: #f8cecc;    --red-line: #b85450;
+  --blue: #dae8fc;   --blue-line: #6c8ebf;
+  --attack: #c0392b;
+  --shade: #ebebeb;
+  --base: #6f6e69;
+  --english-only: #2a78d6;
+  --high: #1baf7a;
+  --low: #8e44ad;
+  --serif: "Times New Roman", "STIX Two Text", "Kohinoor Devanagari", "Noto Nastaliq Urdu",
+    "Tamil Sangam MN", "Kefa III", "Songti SC", "PingFang SC", serif;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { background: #ffffff; }
+body { font-family: var(--serif); color: var(--ink); font-size: 17px; line-height: 1.3; }
+.figure { position: relative; }
+.abs { position: absolute; }
+.box { position: absolute; border: 1.2px solid; border-radius: 7px; padding: 8px 12px; text-align: center; }
+.green { background: var(--green); border-color: var(--green-line); }
+.yellow { background: var(--yellow); border-color: var(--yellow-line); }
+.red { background: var(--red); border-color: var(--red-line); }
+.blue { background: var(--blue); border-color: var(--blue-line); }
+.step { display: inline-flex; align-items: center; justify-content: center; width: 25px; height: 25px; border-radius: 50%; border: 1.5px solid; font-weight: 700; font-size: 15px; margin-right: 6px; vertical-align: middle; }
+.head { font-weight: 700; }
+.inj { color: var(--attack); }
+svg.wires { position: absolute; inset: 0; overflow: visible; pointer-events: none; }
+@page { margin: 0; }
+
+/* Booktabs tables */
+table.booktabs { border-collapse: collapse; font-size: 16px; }
+table.booktabs th, table.booktabs td { padding: 3px 9px; text-align: center; white-space: nowrap; font-weight: 400; }
+table.booktabs td.left, table.booktabs th.left { text-align: left; }
+table.booktabs tr.top th { border-top: 1.6px solid var(--rule); padding-top: 6px; }
+table.booktabs tr.mid td, table.booktabs tr.mid th { border-top: 0.9px solid var(--rule); padding-top: 5px; }
+table.booktabs tr.bottom td { border-bottom: 1.6px solid var(--rule); padding-bottom: 6px; }
+/* A cmidrule: trimmed at both ends so neighbouring groups stay apart */
+table.booktabs .cmid { background: linear-gradient(var(--rule), var(--rule)) no-repeat center bottom / calc(100% - 14px) 0.8px; padding-bottom: 4px; }
+table.booktabs .shade { background: var(--shade); }
+table.booktabs .best { font-weight: 700; }
