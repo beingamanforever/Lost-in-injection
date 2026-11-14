@@ -76,7 +76,7 @@ So we asked a simple question: does a prompt-injection defense learned in Englis
 ### Pre-registered hypotheses
 
 We wrote down our predictions on Nov 2, before any training run.
-We expected the English-only defense to carry over to French and Chinese, weaken on low-resource, romanized and held-out variants, and that multilingual training data would close the gap.
+We expected the English-only defense to carry over to French and Chinese but weaken on low-resource, romanized and held-out variants, and multilingual training data to close the gap.
 We were right about French and Chinese and wrong about the weakening: the defense held everywhere.
 Multilingual data still helped, just not where we expected.
 There was no per-language gap to close, but low-resource injections more than halved the best-of-all rate.
