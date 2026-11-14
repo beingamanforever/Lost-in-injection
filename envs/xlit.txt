@@ -1,0 +1,2 @@
+# AI4Bharat IndicXlit romanization (Python 3.10: it depends on fairseq 0.12).
+ai4bharat-transliteration==1.1.3

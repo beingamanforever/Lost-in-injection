@@ -1,0 +1,7 @@
+# CuratorKIT curation, AlignTune DPO training, AuditKIT evaluation (Python 3.12).
+aligntune @ git+https://github.com/Lexsi-Labs/aligntune@57e9a95e79ace15014beede175c4c3d72405f3b3
+curatorkit[connectors] @ git+https://github.com/Lexsi-Labs/CuratorKIT@dd9e835301fcddc74a37501d9e207a5a060d209f
+auditkit @ git+https://github.com/Lexsi-Labs/AuditKIT@71316da345784ff220d5ed59337441a59ab31526
+# CuratorKIT's local secrets and toxicity gates. Resolved with torch, transformers and TRL held.
+detect-secrets==1.5.0
+detoxify==0.5.4
