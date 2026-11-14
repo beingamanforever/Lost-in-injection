@@ -248,8 +248,9 @@ results/
 ```
 
 Datasets, adapters and evaluation outputs are pushed to the Hugging Face Hub after each stage. The A10G's working disk is ephemeral.
-From Nov 14, `publish.py` uploads each adapter to a private model repository (`lost-in-injection-<run>-seed0`) right after training, and each model's outputs, utility scores, config and trainer logs to the private dataset `lost-in-injection-outputs` after evaluation.
-Making anything public is a separate decision.
+From Nov 14, `publish.py` uploads each adapter to its model repository right after training, and each model's outputs, utility scores, config and trainer logs to one dataset repository after evaluation.
+On Nov 14 the user made every repository public, added the training pairs, the evaluation sets and the curated pool as datasets, and grouped them in two collections.
+After the last run the repositories got readable names: `tiny-aya-secalign-english`, `-high-resource` and `-low-resource` for the adapters, and `lost-in-injection-training-pairs`, `alpacafarm-hacked-11-languages`, `lost-in-injection-curated-pool` and `lost-in-injection-model-outputs` for the datasets.
 
 ## Figures
 
@@ -277,6 +278,9 @@ Making anything public is a separate decision.
   The first A10G trains and evaluates `english-plus-high-resource`, then evaluates the base and prompted baselines; the second trains and evaluates `english-only` and `english-plus-low-resource`.
   Every evaluation uses the same code, pins and 0.80 setting, and each model is trained and evaluated on one machine.
   The second A10G then evaluates the base model again (`base-second-a10g`) to measure any difference between the machines.
+- **Nov 14, 12:15 UTC:** at the user's request the cross-machine check was dropped, since the headline differences dwarf any hardware noise, and both GPUs split what was left.
+  The first A10G finishes the base evaluation, then runs the prompted baseline on English, French, Chinese and Hindi; the second runs the prompted baseline on the other 7 variants.
+  The base model's utility is the second A10G's Nov 13 run, with the same code and batch size as every other model.
 - Global-MMLU-Lite is read at dataset revision `36c2fd75` (lm-eval does not pin it).
 - **Working disk:** `/opt/dlami/nvme/aman/lost-in-injection`, symlinked as `/home/ubuntu/aman/lost-in-injection`.
 - **`gen` environment** (Meta-SecAlign pins): vLLM label generation, translation, all ASR evaluation.
