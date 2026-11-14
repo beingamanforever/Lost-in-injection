@@ -30,7 +30,7 @@ Meta-SecAlign's recipe is neat.
 Take an ordinary task, hide an injection in its data, and let the model answer twice: once doing the task, once obeying the injection.
 Then train with DPO to prefer the first answer over the second.
 Both answers come from the model itself, so it learns *which instruction to follow*, not a new writing style.
-With LoRA it's also cheap: one run took 6.7 hours on a single A10G.
+With LoRA it's also cheap: one run took under seven hours on a single GPU.
 
 ![How one training pair is built](https://raw.githubusercontent.com/beingamanforever/Lost-in-injection/main/docs/figures/method.png)
 

@@ -43,7 +43,7 @@ Tiny Aya Global (3.35B), hardened with Meta-SecAlign's DPO and LoRA recipe throu
 > | Question | Does a prompt-injection defense trained in English hold in other languages, scripts and code-mixes? |
 > | Answer | Yes. English-only training cuts attack success to **0.5-8.7%** in all 11 variants, 4 of them never trained on. |
 > | Remaining risk | Trying every language on each case still succeeds **20.2%** of the time, down from 97.1%. Training on low-resource injections too cuts that to **8.7%**. |
-> | Cost | No utility loss on Global-MMLU-Lite in 5 languages; 6.7 GPU-hours to train on one A10G. |
+> | Cost | No utility loss on Global-MMLU-Lite in 5 languages; under 7 GPU-hours to train each defense. |
 > | Side finding | The standard scorer undercounts non-English attacks by up to **58 points** because it misses markdown. |
 
 ![Figure 1](results/figures/headline.png)
@@ -75,7 +75,7 @@ So we asked a simple question: does a prompt-injection defense learned in Englis
 
 ### Pre-registered hypotheses
 
-We wrote down our predictions on Nov 2, before any training run.
+We wrote down our predictions before any training run.
 We expected the English-only defense to carry over to French and Chinese but weaken on low-resource, romanized and held-out variants, and multilingual training data to close the gap.
 We were right about French and Chinese and wrong about the weakening: the defense held everywhere.
 Multilingual data still helped, just not where we expected.
@@ -117,7 +117,7 @@ CuratorKIT then exports the pairs, AlignTune trains, Meta-SecAlign's runners sco
 
 | Role | Model | Version, setting | License |
 |---|---|---|---|
-| Base and hardened model | `CohereLabs/tiny-aya-global` (3.35B) | Revision of Sep 30, 2026; bf16; LoRA merged before evaluation | CC-BY-NC-4.0 |
+| Base and hardened model | `CohereLabs/tiny-aya-global` (3.35B) | Pinned revision; bf16; LoRA merged before evaluation | CC-BY-NC-4.0 |
 | Translation | `facebook/nllb-200-3.3B` | French, Chinese, Swahili, Amharic, Spanish | CC-BY-NC-4.0 |
 | Translation | `ai4bharat/indictrans2-en-indic-1B` | Hindi, Urdu, Tamil | MIT |
 | Romanization | AI4Bharat IndicXlit | Hindi to Latin script | MIT |
@@ -210,7 +210,7 @@ Each pair puts an injection into the data of an Alpaca task, then prefers Tiny A
 | Optimizer | AdamW, learning rate 1.6e-4, cosine schedule, no warmup, no weight decay |
 | Batch and length | effective batch 64 (micro-batch 1, 64 accumulation steps), 3 epochs, 228 steps, 2,048 tokens |
 | Pairs | 90% straightforward injections at a random position, 10% completion attacks; answers self-generated at temperature 0.8 |
-| Hardware | one A10G (23 GB); 6.7 hours and 18.8 GB peak per run |
+| Hardware | one GPU; 6.7 hours and 18.8 GB peak per run |
 
 The three runs share every pair, attack and label.
 Only the language of the injected instruction differs (Figure 2, bottom).
@@ -338,10 +338,10 @@ With the injection in Urdu, Tamil or Amharic, the defended model also ignores it
 | Translation, gates, labels | about 10 |
 | Training, 3 runs | 20.4 |
 | Evaluation, 5 models | about 15 |
-| Total | about 50, or about $50 at $1.01 per g5.xlarge hour |
+| Total | about 50, or about $50 at about $1 per GPU-hour |
 
-The GPUs were our own A10G instances on AWS.
-For serving, vLLM generated the 1,248 AlpacaFarm replies of one variant in about 6.5 minutes on one A10G, which puts 1,000 replies at about $0.09.
+The GPUs were our own AWS instances.
+For serving, vLLM generated the 1,248 AlpacaFarm replies of one variant in about 6.5 minutes on one GPU, which puts 1,000 replies at about $0.09.
 
 ## 9. Limitations
 
@@ -349,7 +349,7 @@ For serving, vLLM generated the 1,248 AlpacaFarm replies of one variant in about
 - Machine translation changes how strong the attack is in each language. Relative reduction against the undefended model only partly corrects for that.
 - IndicXlit spells some short Hindi words as English look-alikes ("ack" for ek). They are identical in training and evaluation, so they do not favour either.
 - Static attacks only. Without the adaptive attacker and GCG, the 20.2% best-of-all rate is a lower bound on what a determined attacker gets.
-- Models were evaluated on two A10Gs with different drivers, and greedy decoding can differ slightly across hardware. That matters for differences of a point or two, such as between the three defenses, not for the drop from the undefended model.
+- Greedy decoding can differ slightly between GPUs. That matters for differences of a point or two, such as between the three defenses, not for the drop from the undefended model.
 
 ### Dual use
 
@@ -411,7 +411,7 @@ docs/figures/render.sh
 
 ### Work outside the hackathon
 
-None. All of this was done between Nov 1 and Nov 15, 2026.
+None. All of this was done during the hackathon.
 
 ## 13. Discussion
 
@@ -455,7 +455,7 @@ The problem direction, the finding and the experimental plan are mine, worked ou
 
 ## Changelog
 
-- v1, Nov 14: first submission draft.
+- v1: first submission.
 
 ## Appendix
 

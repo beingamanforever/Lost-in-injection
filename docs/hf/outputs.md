@@ -17,7 +17,7 @@ Every reply each model gave in [Lost in Injection](https://github.com/beingamanf
 | `video/` | The 58-second demo video |
 
 The models are `base` (undefended), `prompted` (Meta-SecAlign's reminder prompt), `english-only`, `english-plus-high-resource` and `english-plus-low-resource`.
-`base-first-a10g-0.90/` is an earlier run of the undefended model at a different vLLM memory setting, kept for reference; the report uses `base/`.
+`base-first-a10g-0.90/` is an earlier undefended run that the report does not use.
 `lost_in_injection/metrics.py` in the repository turns these files into `results/metrics.csv`, which every number, figure and table reads.
 
 Released under CC-BY-NC-4.0, as the model and benchmarks that produced them.

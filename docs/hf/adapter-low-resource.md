@@ -54,7 +54,7 @@ print(tokenizer.decode(reply, skip_special_tokens=True))
 
 DPO (sigmoid, beta 0.1) with LoRA (rank 64, alpha 8, dropout 0.1, on q, v, gate, up and down projections) through AlignTune's TRL backend.
 4,834 self-generated preference pairs, 3 epochs, 228 steps, effective batch 64, learning rate 1.6e-4 with a cosine schedule, 2,048 tokens.
-One A10G, 6.7 hours.
+One GPU, 6.7 hours.
 The three adapters share every pair; only the language of the injection differs.
 
 ## License
