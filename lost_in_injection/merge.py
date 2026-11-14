@@ -1,6 +1,6 @@
 """Merge a trained LoRA adapter into full Tiny Aya weights for evaluation (train environment).
 
-vLLM 0.11.0 cannot serve LoRA on Tiny Aya (PLAN.md), so the runners load merged weights. The
+vLLM 0.11.0 cannot serve LoRA on Tiny Aya, so the runners load merged weights. The
 merged folder takes every non-weight file (config, generation config, tokenizer and chat template)
 from the base model directory, so all models are evaluated alike and only the weights differ.
 """

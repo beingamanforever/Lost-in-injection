@@ -1,13 +1,8 @@
-<p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/readme/logo-dark.svg">
-    <img src="docs/readme/logo-light.svg" alt="Lost in Injection" width="560">
-  </picture>
-</p>
+<p align="center"><img src="docs/readme/logo.svg" alt="Lost in Injection" width="560"></p>
 
 <p align="center">
-  A prompt-injection defense trained only in English holds in every language we tested, even ones it never saw,<br>
-  and adding low-resource languages to training halves what still gets through.
+  A prompt-injection defense trained only in English protects every language we tested.<br>
+  Training on low-resource languages too makes it stronger, with no loss in quality.
 </p>
 
 <p align="center">
@@ -73,7 +68,7 @@ python -m lost_in_injection.metrics   # every number, with bootstrap intervals
 python -m lost_in_injection.figures   # and lost_in_injection.tables for the report
 ```
 
-`lost_in_injection/` holds the pipeline, `scripts/` the runs, `results/` the metrics and figures, and `PLAN.md` every design decision with its date.
+`lost_in_injection/` holds the pipeline, `scripts/` the runs, and `results/` the metrics and figures.
 
 ## Citation
 

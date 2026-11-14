@@ -1,24 +1,23 @@
 <!doctype html>
 <!-- The README logo: the untrusted-data card from the figures and video, its injected line
-     marked and knocked out of line, the defense's shield, and the wordmark. ?dark renders the
-     variant for GitHub's dark theme. -->
+     marked and knocked out of line, the defense's shield, and the wordmark. One image for light
+     and dark pages: the wordmark colours keep at least 3:1 contrast on white and on #0d1117. -->
 <html lang="en"><head><meta charset="utf-8">
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=block" rel="stylesheet">
 <style>
   @page { size: 1200px 400px; margin: 0; }
-  :root { --ink: #1d1d1b; --soft: #7d7c77; --ground: #ffffff; --mark: #ffcdd0; }
-  :root.dark { --ink: #ecebe6; --soft: #a3a198; --ground: #0d1117; --mark: rgba(255, 138, 143, 0.38); }
+  :root { --lost: #2f86b8; --soft: #868d96; --injection: #d64535; --mark: rgba(255, 110, 110, 0.26); }
   * { margin: 0; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   html, body { background: transparent; }
   body { padding: 40px; }
   .lockup { display: inline-flex; align-items: center; gap: 30px; }
-  .word { font-family: "Instrument Serif", serif; font-size: 92px; line-height: 1; color: var(--ink); letter-spacing: -0.5px; white-space: nowrap; }
+  .word { font-family: "Instrument Serif", serif; font-size: 92px; line-height: 1; color: var(--lost); letter-spacing: -0.5px; white-space: nowrap; }
   .word i { color: var(--soft); }
+  .hl { color: var(--injection); }
   .hl { position: relative; display: inline-block; }
   .hl::before { content: ""; position: absolute; left: -6px; right: -8px; bottom: 6px; height: 34%; background: var(--mark);
                 border-radius: 3px; transform: skewX(-12deg); z-index: -1; }
 </style>
-<script>if (location.search.includes("dark")) document.documentElement.classList.add("dark");</script>
 </head><body>
 <div class="lockup">
   <svg width="132" height="132" viewBox="0 0 132 132" xmlns="http://www.w3.org/2000/svg">
@@ -30,9 +29,9 @@
     <rect x="27" y="58" width="72" height="21" rx="5" fill="#ffcdd0"/>
     <rect x="33" y="64" width="58" height="9" rx="4.5" fill="#c0392b"/>
     <rect x="20" y="88" width="40" height="9" rx="4.5" fill="#eebd98"/>
-    <!-- The defense: the shield from the video, cut out of the card by a ring of background. -->
+    <!-- The defense: the shield from the video, with a white rim like a sticker on any page. -->
     <path d="M100 66l24 10v19c0 15-10 26-24 31-14-5-24-16-24-31V76z" fill="#5fb5d1"
-          style="stroke: var(--ground)" stroke-width="6" stroke-linejoin="round"/>
+          stroke="#ffffff" stroke-width="6" stroke-linejoin="round"/>
     <path d="M90 95l7 7 13-14" fill="none" stroke="#ffffff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
   </svg>
   <div class="word">Lost <i>in</i> <span class="hl">Injection</span></div>

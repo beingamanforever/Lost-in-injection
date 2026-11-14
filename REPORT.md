@@ -1,6 +1,7 @@
 # Lost in Injection: an English-only prompt-injection defense holds in eleven languages
 
-A prompt-injection defense trained only in English holds in every language we tested, even ones it never saw, and adding low-resource languages to training halves what still gets through.
+A prompt-injection defense trained only in English protects every language we tested.
+Training on low-resource languages too makes it stronger, with no loss in quality.
 
 ## Tracks and problem statements
 
@@ -74,8 +75,8 @@ So we asked a simple question: does a prompt-injection defense learned in Englis
 
 ### Pre-registered hypotheses
 
-We wrote the plan before any training run (`PLAN.md`, commit `9dbe5fc`, Nov 2).
-It predicted that the English-only defense would carry over to French and Chinese, weaken on low-resource, romanized and held-out variants, and that multilingual training data would close the gap.
+We wrote down our predictions on Nov 2, before any training run.
+We expected the English-only defense to carry over to French and Chinese, weaken on low-resource, romanized and held-out variants, and that multilingual training data would close the gap.
 We were right about French and Chinese and wrong about the weakening: the defense held everywhere.
 Multilingual data still helped, just not where we expected.
 There was no per-language gap to close, but low-resource injections more than halved the best-of-all rate.
@@ -229,7 +230,6 @@ InjecAgent already gives every model Meta-SecAlign's sandwich prompt, so the pro
 
 One training seed per run, with data seed 0.
 We planned four ablations (a 25% multilingual share, a Hindi-only mix, native scripts only, no input role), an adaptive LLM attacker and GCG, and cut them all to fit the GPU budget.
-Their designs stay in `PLAN.md`.
 
 ## 7. Results
 
@@ -398,7 +398,6 @@ One GPU with 23 GB is enough.
 | `scripts/` | `build_data.sh`, `run_baselines.sh`, `run_models.sh` |
 | `docs/figures/` | Diagram and table sources, rendered with `render.sh` |
 | `results/` | `metrics.csv`, `training.csv`, figures |
-| `PLAN.md` | Every design decision and change, dated |
 
 ### Commands
 

@@ -1,6 +1,6 @@
 """Train one DPO + LoRA run with AlignTune's TRL backend (train environment).
 
-The recipe is Meta-SecAlign's (PLAN.md, Reference recipe). Several AlignTune defaults differ from
+The recipe is Meta-SecAlign's (REPORT.md, section 6). Several AlignTune defaults differ from
 it, its `lr_scheduler` field never reaches TRL (only `lr_scheduler_type` does), and TRL's
 `disable_dropout` would zero the LoRA dropout, so every value is passed explicitly. The resolved
 TRL DPOConfig and LoRA config are asserted against the recipe and saved before any step runs.
