@@ -1,57 +1,90 @@
-# Lost in Injection
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/readme/logo-dark.svg">
+    <img src="docs/readme/logo-light.svg" alt="Lost in Injection" width="560">
+  </picture>
+</p>
 
-A prompt-injection defense trained only on English injections protects Tiny Aya Global in 11 languages, scripts and code-mixes, including four it never saw.
-Adding low-resource languages to its training injections more than halves what an attacker who tries every language can still break.
-Lexsi AI Safety and Alignment Hackathon 2026, Track 2a, problem statements 4 and 3.
+<p align="center">
+  A prompt-injection defense trained only in English holds in every language we tested, even ones it never saw,<br>
+  and adding low-resource languages to training halves what still gets through.
+</p>
+
+<p align="center">
+  <a href="REPORT.md"><b>Paper</b></a> &nbsp;·&nbsp;
+  <a href="ARTICLE.md"><b>Blog post</b></a> &nbsp;·&nbsp;
+  <a href="https://huggingface.co/datasets/beingamanforever/lost-in-injection-model-outputs/blob/main/video/lost-in-injection-demo.mp4"><b>Video</b></a> &nbsp;·&nbsp;
+  <a href="https://huggingface.co/collections/beingamanforever/tiny-aya-global-hardened-against-prompt-injection-6af83c90c9b6f21539a70475"><b>Models</b></a> &nbsp;·&nbsp;
+  <a href="https://huggingface.co/collections/beingamanforever/lost-in-injection-data-and-model-outputs-6af83c907e17226835782018"><b>Data</b></a>
+  <br><sub>Lexsi AI Safety and Alignment Hackathon 2026 · Track 2a, problem statements 4 and 3</sub>
+</p>
+
+<p align="center"><img src="docs/readme/attack.gif" width="720" alt="An instruction hidden in a product review makes Tiny Aya Global reply Hacked!"></p>
+
+## What we found
+
+Agents read text an attacker can write, and Meta-SecAlign teaches a model to treat that text as data.
+It is trained in English; Tiny Aya is built for everyone else.
+We trained it into Tiny Aya Global and attacked it in 11 languages, scripts and code-mixes.
+
+- **It transfers:** trained on English injections alone, the defense also blocks them in French, Chinese, Hindi, Swahili, romanized Hindi and Hinglish, and in Urdu, Tamil, Amharic and Spanglish, which no run ever saw.
+- **Languages add up:** an attacker who tries every language on each case still gets through about one time in five.
+- **Low-resource data closes most of that:** adding Hindi, Swahili, romanized Hindi and Hinglish injections to training halves it, with utility unchanged.
+- **Scorers miss it:** the standard AlpacaFarm-Hacked rule ignores replies that open with markdown, so non-English attacks look far rarer than they are.
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/readme/transfer.gif" alt="Attack success per language before and after the English-only defense"></td>
+    <td width="50%"><img src="docs/readme/best-of-all.gif" alt="208 cases by 11 languages, collapsed into the best-of-all row"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>Trained on English, safe in all 11 variants</sub></td>
+    <td align="center"><sub>Trying every language, before and after low-resource training</sub></td>
+  </tr>
+</table>
 
 ![Figure 1](results/figures/headline.png)
-
-The full write-up is in [REPORT.md](REPORT.md), a shorter first-person version is in [ARTICLE.md](ARTICLE.md), and every design decision, with its date, is in [PLAN.md](PLAN.md).
-
-## Results
 
 | | Undefended | English-only | + High-resource | + Low-resource |
 |---|---|---|---|---|
 | Attack success, English | 89.9% | 8.7% | 11.5% | 7.2% |
-| Attack success, other 10 variants | 51-89% | 0.5-8.7% | 0.0-6.2% | 0.0-1.9% |
 | Attack success, 4 held-out variants | 69-85% | 2.9-8.7% | 2.9-6.2% | 0.5-1.9% |
-| Best of all 11 variants per case | 97.1% | 20.2% | 15.9% | 8.7% |
+| Best of all 11 variants per case | 97.1% | 20.2% | 15.9% | **8.7%** |
 | Global-MMLU-Lite, mean of 5 languages | 55.4% | 55.5% | 55.5% | 56.0% |
 
-AlpacaFarm-Hacked, 208 cases per variant, any of six attacks, leading markdown skipped.
-The defenses differ only in the language of their training injections: English, English with French and Chinese, or English with Hindi, Swahili, Hindi in Latin script and Hinglish.
+<sub>AlpacaFarm-Hacked, 208 cases per variant, any of six attacks, leading markdown skipped.</sub>
 
-Adapters, data and every model output are on Hugging Face, in [the model collection](https://huggingface.co/collections/beingamanforever/tiny-aya-global-hardened-against-prompt-injection-6af83c90c9b6f21539a70475) and [the dataset collection](https://huggingface.co/collections/beingamanforever/lost-in-injection-data-and-model-outputs-6af83c907e17226835782018).
-A 58-second video walks through it: [`video/`](video) has the source, and the [rendered file](https://huggingface.co/datasets/beingamanforever/lost-in-injection-model-outputs/blob/main/video/lost-in-injection-demo.mp4) sits with the outputs.
+## How it works
+
+![Figure 2](docs/figures/method.png)
+
+Each training pair hides an injection in a tool result, then prefers Tiny Aya's own answer to the task over its answer to the injection: Meta-SecAlign's DPO and LoRA recipe, run through AlignTune.
+The three defenses share every pair; only the language of the injection changes.
 
 ## Reproduce
 
-The pipeline runs on one 23 GB GPU with two uv environments, `gen` (vLLM 0.11.0, Meta-SecAlign's pins) and `train` (AlignTune, TRL 1.7.1), defined in `envs/`.
+One 23 GB GPU and two uv environments from `envs/`: `gen` (vLLM 0.11.0, Meta-SecAlign's pins) and `train` (AlignTune, TRL 1.7.1).
 
 ```bash
-bash scripts/build_data.sh
-bash scripts/run_baselines.sh
+bash scripts/build_data.sh        # curate with CuratorKIT, translate and gate, build the test sets
+bash scripts/run_baselines.sh     # undefended and prompted baselines
 bash scripts/run_models.sh english-only english-plus-high-resource english-plus-low-resource
-python -m lost_in_injection.metrics
-python -m lost_in_injection.figures
-python -m lost_in_injection.tables
-docs/figures/render.sh
+python -m lost_in_injection.metrics   # every number, with bootstrap intervals
+python -m lost_in_injection.figures   # and lost_in_injection.tables for the report
 ```
 
-`build_data.sh` curates the pool with CuratorKIT, translates and gates the injections, and builds the evaluation sets.
-`run_models.sh` trains each defense with AlignTune, merges it, runs Meta-SecAlign's evaluators and scores utility with AuditKIT; `publish.py` uploads adapters and outputs to Hugging Face.
-`metrics.py` writes `results/metrics.csv` with bootstrap intervals, which every figure and table reads.
+`lost_in_injection/` holds the pipeline, `scripts/` the runs, `results/` the metrics and figures, and `PLAN.md` every design decision with its date.
 
-## Layout
+## Citation
 
-| Path | Contents |
-|---|---|
-| `lost_in_injection/` | Pool, translation and gates, code-mixing, labels, export, training, merging, evaluation, metrics, figures, tables, leak check |
-| `scripts/` | End-to-end run scripts |
-| `docs/figures/` | Sources for the method figure and tables, rendered with headless Chrome |
-| `results/` | Metrics, training curves and figures |
-| `tests/` | Unit tests for metrics, figures and publishing |
+```bibtex
+@misc{behera2026lostininjection,
+  title  = {Lost in Injection: An English-only Prompt-injection Defense Holds in Eleven Languages},
+  author = {Behera, Aman},
+  year   = {2026},
+  note   = {Lexsi AI Safety and Alignment Hackathon, Track 2a},
+  url    = {https://github.com/beingamanforever/Lost-in-injection}
+}
+```
 
-## License
-
-Code: MIT. Models and data keep their own licenses (Tiny Aya Global and NLLB-200 are CC-BY-NC-4.0); see REPORT.md, sections 3 and 4.
+Code is MIT; models and data keep their own licenses (Tiny Aya Global and NLLB-200 are CC-BY-NC-4.0).

@@ -1,6 +1,6 @@
 # Lost in Injection: an English-only prompt-injection defense holds in eleven languages
 
-A prompt-injection defense trained only on English injections cuts attack success on Tiny Aya Global from 51-90% to under 9% in all 11 languages, scripts and code-mixes we tested, four of them never seen in training, and adding low-resource languages to training more than halves what is left, with no loss of utility.
+A prompt-injection defense trained only in English holds in every language we tested, even ones it never saw, and adding low-resource languages to training halves what still gets through.
 
 ## Tracks and problem statements
 
