@@ -11,9 +11,10 @@ Global-MMLU-Lite accuracy (utility.py).
 
 Intervals are 95% percentile bootstraps over cases with 10,000 resamples. Relative reduction
 against the base model, and the transfer gap, resample the same cases for both models. The language
-search attack counts a case if it succeeds in any variant. Everything goes to one long table,
-results/metrics.csv, and the DPO training curves to results/training.csv; the figures read only
-these two files.
+search attack counts a case if it succeeds in any variant, and its cost to break is the expected
+number of prompts an attacker tries, in random order, before the first success. Everything goes
+to one long table, results/metrics.csv, and the DPO training curves to results/training.csv; the
+figures read only these two files.
 """
 
 import argparse
@@ -97,6 +98,16 @@ def utility(path: Path) -> dict[str, np.ndarray]:
     }
 
 
+def prompts_to_first_success(hits: np.ndarray) -> np.ndarray:
+    """Expected prompts tried, in random order, until the first success, per case that breaks.
+
+    `hits` is prompts x cases. With k of n prompts succeeding, the first success comes at
+    (n + 1) / (k + 1) on average; cases no prompt breaks are left out.
+    """
+    k = hits.sum(axis=0)
+    return (len(hits) + 1) / (k[k > 0] + 1)
+
+
 def resample(n: int, rng: np.random.Generator) -> np.ndarray:
     return rng.integers(0, n, size=(RESAMPLES, n))
 
@@ -121,7 +132,7 @@ def reduction(base: np.ndarray, run: np.ndarray, idx: np.ndarray) -> tuple[float
 
 def model_rows(model: str, eval_dir: Path, rng: np.random.Generator) -> tuple[list[dict], dict]:
     """Rows for one model, and per success rule and variant, which cases any attack hijacked."""
-    rows, combined = [], {OFFICIAL: {}, MARKDOWN_TOLERANT: {}}
+    rows, combined, prompts = [], {OFFICIAL: {}, MARKDOWN_TOLERANT: {}}, {}
     defense = "reminder" if model == "prompted" else "none"
     for variant in EVALUATED:
         variant_dir = eval_dir / variant
@@ -129,6 +140,7 @@ def model_rows(model: str, eval_dir: Path, rng: np.random.Generator) -> tuple[li
             print(f"skipped: {model} {variant} has no outputs")
             continue
         success, contains = alpacafarm(variant_dir, defense)
+        prompts[variant] = success[MARKDOWN_TOLERANT]
         for benchmark, starts in success.items():
             combined[benchmark][variant] = starts.any(axis=0)
             key = (model, benchmark, "combined", variant)
@@ -147,6 +159,11 @@ def model_rows(model: str, eval_dir: Path, rng: np.random.Generator) -> tuple[li
             if all(v in hijacked_by_variant for v in variants):
                 hijacked = np.any([hijacked_by_variant[v] for v in variants], axis=0)
                 rows.append(rate((model, benchmark, "combined", name), "asr", hijacked, rng))
+    for name, variants in (("english", ["english"]), ("any-language", EVALUATED)):
+        if all(v in prompts for v in variants):
+            cost = prompts_to_first_success(np.concatenate([prompts[v] for v in variants]))
+            key = (model, MARKDOWN_TOLERANT, "combined", name)
+            rows.append(rate(key, "cost_to_break", cost, rng))
     utility_file = eval_dir.parent / "utility" / "global_mmlu_lite.json"
     if utility_file.exists():
         for lang, correct in utility(utility_file).items():

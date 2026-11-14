@@ -80,7 +80,7 @@ def style() -> None:
 
 
 def clashes(fig) -> list[str]:
-    """Pairs of drawn texts, or a text and a bar, whose boxes intersect."""
+    """Pairs of drawn texts, or a text and a bar or data line, that intersect."""
     fig.canvas.draw()
     renderer = fig.canvas.get_renderer()
     texts = [
@@ -91,13 +91,24 @@ def clashes(fig) -> list[str]:
         if box.width > 0
     ]
     bars = [p.get_window_extent(renderer) for ax in fig.axes for p in ax.patches]
+    lines = [
+        line.get_transform().transform_path(line.get_path())
+        for ax in fig.axes
+        for line in ax.get_lines()
+    ]
     found = [
         f"{a!r} and {b!r}"
         for i, (a, x) in enumerate(texts)
         for b, y in texts[i + 1 :]
         if x.overlaps(y)
     ]
-    return found + [f"{a!r} and a bar" for a, x in texts for y in bars if x.overlaps(y)]
+    found += [f"{a!r} and a bar" for a, x in texts for y in bars if x.overlaps(y)]
+    return found + [
+        f"{a!r} and a line"
+        for a, x in texts
+        for path in lines
+        if path.intersects_bbox(x, filled=False)
+    ]
 
 
 def save(fig, out: Path, name: str) -> None:
@@ -131,6 +142,7 @@ def present(metrics: dict) -> list[str]:
 def bars(ax, groups: list[str], series: dict[str, list[float]], labels: bool, best=min) -> None:
     """Grouped bars, one colour per series; with `best`, each group's best value is in bold."""
     width = 0.8 / len(series)
+    upright = len(series) > 3  # Side by side, labels wider than their bars would collide.
     for i, (model, values) in enumerate(series.items()):
         x = np.arange(len(groups)) + (i - (len(series) - 1) / 2) * width
         ax.bar(x, values, width, color=COLORS.get(model, model), label=LABELS.get(model, model))
@@ -144,6 +156,7 @@ def bars(ax, groups: list[str], series: dict[str, list[float]], labels: bool, be
                     ha="center",
                     va="bottom",
                     fontsize=6.5,
+                    rotation=90 if upright else 0,
                     fontweight="bold" if value == top else "normal",
                 )
     ax.set_xticks(range(len(groups)), groups)
@@ -169,7 +182,9 @@ def headline(metrics: dict, out: Path) -> None:
     fig, (left, right) = plt.subplots(
         1, 2, figsize=(WIDTH, 2.1), gridspec_kw={"width_ratios": [5, 5.6], "wspace": 0.24}
     )
-    weights = [m for m in models if m != "prompted"]  # Prompted shares the base weights
+    # The prompted baseline shares the base weights, and its attack rates sit within a few points of
+    # the base model's; Table 1 reports them, and leaving it out keeps four bars per group.
+    weights = [m for m in models if m != "prompted"]
     utility = {
         m: [
             100 * metrics.get((m, "global-mmlu-lite", "0-shot", lang, "accuracy"), np.nan)
@@ -184,7 +199,7 @@ def headline(metrics: dict, out: Path) -> None:
     security = {
         m: [100 * np.mean([asr(metrics, m, v) for v in variants]) for _, variants in GROUPS]
         + [100 * asr(metrics, m, "any-language")]
-        for m in models
+        for m in weights
     }
     bars(
         right,
@@ -193,7 +208,8 @@ def headline(metrics: dict, out: Path) -> None:
         labels=True,
     )
     right.axvline(len(GROUPS) - 0.5, color="#bbbbbb", linewidth=0.7)
-    right.set_ylim(0, 108)
+    right.set_ylim(0, 122)  # Headroom for the upright labels; ticks stop at 100.
+    right.set_yticks(range(0, 101, 25))
     right.set_ylabel("Attack success (%)")
     handles, names = right.get_legend_handles_labels()
     fig.subplots_adjust(top=0.86)
@@ -202,7 +218,7 @@ def headline(metrics: dict, out: Path) -> None:
         names,
         loc="lower center",
         bbox_to_anchor=(0.5, 0.88),
-        ncols=len(models),
+        ncols=len(weights),
         handlelength=1.1,
         columnspacing=1.2,
     )
@@ -250,12 +266,20 @@ def script_vs_language(metrics: dict, out: Path) -> None:
         "Hindi\n(Latin script)",
         "Hinglish\n(code-mixed)",
     ]
-    series = {m: [100 * asr(metrics, m, v) for v in variants] for m in models}
+    shown = [m for m in models if m != "prompted"]  # As in Figure 1; Table 1 has prompted.
+    series = {m: [100 * asr(metrics, m, v) for v in variants] for m in shown}
     fig, ax = plt.subplots(figsize=(4.6, 2.2))
     bars(ax, names, series, labels=True)
     ax.set_ylim(0, 100)
     ax.set_ylabel("Attack success (%)")
-    ax.legend(loc="lower center", bbox_to_anchor=(0.5, 1.0), ncols=3, handlelength=1.1)
+    ax.legend(
+        loc="lower center",
+        bbox_to_anchor=(0.5, 1.0),
+        ncols=len(shown),
+        handlelength=1.0,
+        columnspacing=0.9,
+        fontsize=8,
+    )
     save(fig, out, "script_vs_language")
 
 
@@ -264,29 +288,41 @@ def training_dynamics(curves: list[dict], out: Path) -> None:
     if not runs or "rewards/chosen" not in curves[0]:
         return
     fig, ax = plt.subplots(figsize=(3.4, 2.2))
+    top, tail, last = -np.inf, -np.inf, 0
     for run in runs:
         rows = [c for c in curves if c["run"] == run]
         steps = [int(c["step"]) for c in rows]
-        ax.plot(
-            steps,
-            [float(c["rewards/chosen"]) for c in rows],
-            "--",
-            color=COLORS[run],
-            linewidth=1.2,
-            label=f"{LABELS[run]} (preferred answer)",
-        )
-        ax.plot(
-            steps,
-            [float(c["rewards/rejected"]) for c in rows],
-            "-",
-            color=COLORS[run],
-            linewidth=1.2,
-            label=f"{LABELS[run]} (injected answer)",
-        )
+        chosen = [float(c["rewards/chosen"]) for c in rows]
+        rejected = [float(c["rewards/rejected"]) for c in rows]
+        ax.plot(steps, chosen, "--", color=COLORS[run], linewidth=1.2)
+        ax.plot(steps, rejected, "-", color=COLORS[run], linewidth=1.2, label=LABELS[run])
+        top, last = max(top, max(chosen)), max(last, steps[-1])
+        tail = max(tail, max(r for s, r in zip(steps, rejected, strict=True) if s >= steps[-1] / 2))
     ax.axhline(0, color="#bbbbbb", linewidth=0.6, zorder=0)
+    # Line style carries the answer and colour the run, so the two answers are labelled in the empty
+    # space above and between the curves instead of in a legend box that would sit on them.
+    ax.text(
+        last,
+        top + 0.8,
+        "preferred answer (dashed)",
+        ha="right",
+        va="bottom",
+        fontsize=7.5,
+        color="#555555",
+    )
+    ax.text(
+        last,
+        tail / 2,
+        "injected answer (solid)",
+        ha="right",
+        va="center",
+        fontsize=7.5,
+        color="#555555",
+    )
+    ax.set_ylim(top=top + 3.5)
     ax.set_xlabel("DPO training step")
     ax.set_ylabel("Implicit reward")
-    ax.legend(loc="lower left", fontsize=7, handlelength=1.6)
+    ax.legend(loc="lower center", bbox_to_anchor=(0.5, 1.0), ncols=len(runs), handlelength=1.6)
     save(fig, out, "training_dynamics")
 
 

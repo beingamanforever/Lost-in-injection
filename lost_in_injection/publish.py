@@ -1,4 +1,4 @@
-"""Upload a run's adapter and outputs to private Hugging Face repositories (gen environment).
+"""Upload a run's adapter and outputs to Hugging Face (gen environment).
 
 The adapter goes to its own model repository. Evaluation outputs, utility scores, the training
 config and trainer logs go under <model>/<seed>/ in one dataset repository. Only regular files are
@@ -6,7 +6,8 @@ uploaded: each eval folder's symlinks point at the merged weights and benchmark 
 weights and trainer checkpoints are left out, since the adapter and the base model rebuild them.
 The adapter's card and config name the local base-model folder, which the Hub rejects, so the
 uploaded copies name the Hub model instead. Uploading again adds what is new, so it can run after
-training and again after evaluation.
+training and again after evaluation. New repositories start private; they were made public for
+the submission.
 """
 
 import argparse
@@ -16,7 +17,12 @@ from pathlib import Path
 
 from huggingface_hub import CommitOperationAdd, HfApi
 
-OUTPUTS_REPO = "lost-in-injection-outputs"
+OUTPUTS_REPO = "lost-in-injection-model-outputs"
+ADAPTER_REPOS = {  # One seed per run, so the names carry the training mix only.
+    "english-only": "tiny-aya-secalign-english",
+    "english-plus-high-resource": "tiny-aya-secalign-high-resource",
+    "english-plus-low-resource": "tiny-aya-secalign-low-resource",
+}
 LOCAL_BASE = re.compile(r"[^\s\"']*/models/tiny-aya-global")
 HUB_BASE = "CohereLabs/tiny-aya-global"
 
@@ -41,8 +47,6 @@ def upload(
     api: HfApi, repo_id: str, repo_type: str, root: Path, paths: list[Path], prefix: str
 ) -> None:
     api.create_repo(repo_id, repo_type=repo_type, private=True, exist_ok=True)
-    if not api.repo_info(repo_id, repo_type=repo_type).private:
-        raise SystemExit(f"{repo_id} is public; nothing uploaded")
     operations = [
         CommitOperationAdd(f"{prefix}{path.relative_to(root)}", content(path)) for path in paths
     ]
@@ -63,7 +67,7 @@ def main() -> None:
     adapter = args.run_dir / "adapter"
     if adapter.is_dir():
         files = sorted(path for path in adapter.iterdir() if path.is_file())
-        upload(api, f"{user}/lost-in-injection-{model}-seed{seed}", "model", adapter, files, "")
+        upload(api, f"{user}/{ADAPTER_REPOS[model]}", "model", adapter, files, "")
     upload(
         api,
         f"{user}/{OUTPUTS_REPO}",

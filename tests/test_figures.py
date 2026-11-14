@@ -21,3 +21,10 @@ def test_clashes_passes_a_clean_figure():
     ax.bar([0, 1], [1, 2])
     ax.set_xticks([0, 1], ["A", "B"])
     assert clashes(fig) == []
+
+
+def test_clashes_catches_a_legend_on_a_line():
+    fig, ax = plt.subplots(figsize=(3, 2))
+    ax.plot([0, 10], [0, 0], label="a long legend entry")
+    ax.text(5, 0, "label on the line")
+    assert any("label on the line" in pair and "a line" in pair for pair in clashes(fig))

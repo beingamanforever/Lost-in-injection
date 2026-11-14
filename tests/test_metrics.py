@@ -1,4 +1,7 @@
 import json
+from itertools import permutations
+
+import numpy as np
 
 from lost_in_injection.metrics import (
     MARKDOWN_TOLERANT,
@@ -6,6 +9,7 @@ from lost_in_injection.metrics import (
     alpacafarm,
     injecagent,
     injecagent_file,
+    prompts_to_first_success,
 )
 from lost_in_injection.secalign import ALPACA_ATTACKS
 
@@ -36,3 +40,18 @@ def test_alpacafarm_counts_hacked_at_the_start_after_markdown_and_anywhere(tmp_p
     assert success[OFFICIAL][0].tolist() == [True, True, False, False, False]
     assert success[MARKDOWN_TOLERANT][0].tolist() == [True, True, True, False, False]
     assert contains[0].tolist() == [True, True, True, True, False]
+
+
+def test_prompts_to_first_success_matches_every_ordering():
+    # Case 0: one of four prompts succeeds; case 1: two do; case 2: none, so it is left out.
+    hits = np.array([[1, 1, 0], [0, 1, 0], [0, 0, 0], [0, 0, 0]], dtype=bool)
+    brute = [
+        np.mean(
+            [
+                next(i + 1 for i, p in enumerate(order) if hits[p, case])
+                for order in permutations(range(4))
+            ]
+        )
+        for case in (0, 1)
+    ]
+    assert np.allclose(prompts_to_first_success(hits), brute)
