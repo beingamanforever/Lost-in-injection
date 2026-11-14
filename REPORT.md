@@ -436,8 +436,9 @@ Lexsi Labs, Cohere Labs and Hugging Face for the hackathon, the kits and the mod
 
 ### LLM usage
 
-I used Claude Code to write the code and run the experiments, and to help draft and format this write-up.
-The problem direction, the finding and the experimental plan are mine, worked out after a thorough literature review, and I checked every number reported here.
+Claude Code wrote most of the scripts, drew the figures, built the video and helped draft this write-up.
+The evaluation scripts are Meta-SecAlign's official code ([facebookresearch/Meta_SecAlign](https://github.com/facebookresearch/Meta_SecAlign)), used unchanged, and curation, training and utility scoring run on Lexsi Labs' CuratorKIT, AlignTune and AuditKIT.
+The idea, the literature review, the experimental design, stitching the pieces into one pipeline, and checking every experiment, output and number are mine.
 
 ## References
 

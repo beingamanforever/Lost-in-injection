@@ -154,7 +154,7 @@ Two things, both cheap:
 The code and the full write-up are on [GitHub](https://github.com/beingamanforever/Lost-in-injection), and the adapters, data and every model reply are on Hugging Face, in [one collection for models](https://huggingface.co/collections/beingamanforever/tiny-aya-global-hardened-against-prompt-injection-6af83c90c9b6f21539a70475) and [one for data](https://huggingface.co/collections/beingamanforever/lost-in-injection-data-and-model-outputs-6af83c907e17226835782018).
 This was built for the Lexsi AI Safety and Alignment Hackathon 2026, Track 2a.
 
-*Claude Code helped me write the code and run the experiments. The question, the plan and the finding are mine.*
+*Claude Code helped me write the scripts, draw the figures and build the video; the evaluation code is Meta-SecAlign's own. The idea, the literature review, the experiment design and the checking are mine.*
 
 [^1]: I'll send this to the Meta-SecAlign maintainers. It's a one-line fix, the best kind.
 
