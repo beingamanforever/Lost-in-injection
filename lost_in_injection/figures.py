@@ -24,7 +24,7 @@ from lost_in_injection.metrics import (
     OFFICIAL,
     UTILITY_LANGUAGES,
 )
-from lost_in_injection.runs import RUNS
+from lost_in_injection.runs import FAMILY, FAMILY_RUNS, RUNS
 
 COLORS = {
     "base": "#8c8c8c",
@@ -32,6 +32,8 @@ COLORS = {
     "english-only": "#5fb5d1",
     "english-plus-high-resource": "#8e7cc3",
     "english-plus-low-resource": "#e3804b",
+    "any-in-focus": "#5fb5d1",
+    "any-out-of-focus": "#e3804b",
 }
 LABELS = {
     "base": "Undefended",
@@ -39,7 +41,22 @@ LABELS = {
     "english-only": "English-only",
     "english-plus-high-resource": "+ High-resource",
     "english-plus-low-resource": "+ Low-resource",
+    "hindi-only-mix": "Hindi only",
+    "multilingual-share-25": "25% multilingual",
+    "native-scripts-only": "Native scripts only",
+    "no-input-role": "No input role",
+    "any-in-focus": "In-focus",
+    "any-out-of-focus": "Out-of-focus",
 }
+# Family runs (e.g. "fire-english-only") reuse Global's recipe names and colours; only the label
+# gets the model's name, so the family figure and tables can tell its bars apart.
+LABELS.update(
+    {
+        f"{fam}-{recipe}": f"{fam.title()}: {LABELS[recipe]}"
+        for fam in FAMILY
+        for recipe in ("base", *FAMILY_RUNS)
+    }
+)
 UTILITY_NAMES = {"en": "English", "hi": "Hindi", "sw": "Swahili", "fr": "French", "zh": "Chinese"}
 GROUPS = (
     ("English", ("english",)),
@@ -111,6 +128,12 @@ def clashes(fig) -> list[str]:
     ]
 
 
+def drop(out: Path, name: str) -> None:
+    """Remove a figure whose data is absent, so no stale version outlives it."""
+    for suffix in ("pdf", "svg", "png"):
+        (out / f"{name}.{suffix}").unlink(missing_ok=True)
+
+
 def save(fig, out: Path, name: str) -> None:
     if found := clashes(fig):
         raise ValueError(f"{name}: overlapping elements: {'; '.join(found)}")
@@ -119,15 +142,29 @@ def save(fig, out: Path, name: str) -> None:
     plt.close(fig)
 
 
-def read(results: Path) -> tuple[dict, list[dict]]:
+def read(results: Path, seed: str = "0") -> tuple[dict, list[dict]]:
     with (results / "metrics.csv").open() as file:
         metrics = {
             (r["model"], r["benchmark"], r["setting"], r["variant"], r["metric"]): float(r["value"])
             for r in csv.DictReader(file)
+            if r.get("seed", "0") == seed
         }
     training = results / "training.csv"
     curves = list(csv.DictReader(training.open())) if training.exists() else []
     return metrics, curves
+
+
+def read_bounds(results: Path, seed: str = "0") -> dict:
+    """ci_low/ci_high beside each value; only the adaptive-ASR curve needs the interval."""
+    with (results / "metrics.csv").open() as file:
+        return {
+            (r["model"], r["benchmark"], r["setting"], r["variant"], r["metric"]): (
+                float(r["ci_low"]),
+                float(r["ci_high"]),
+            )
+            for r in csv.DictReader(file)
+            if r.get("seed", "0") == seed
+        }
 
 
 def asr(metrics: dict, model: str, variant: str, benchmark: str = MARKDOWN_TOLERANT) -> float:
@@ -326,18 +363,137 @@ def training_dynamics(curves: list[dict], out: Path) -> None:
     save(fig, out, "training_dynamics")
 
 
+ADAPTIVE_K = (*range(1, 52),)  # The adaptive attack's query budgets, 1 through 51.
+
+
+def adaptive_curve(metrics: dict, bounds: dict, out: Path) -> None:
+    models = [
+        m for m in MODELS if (m, "alpacafarm-adaptive", "pair", "1-queries", "asr") in metrics
+    ]
+    if not models:
+        drop(out, "adaptive_curve")
+        return
+    fig, ax = plt.subplots(figsize=(WIDTH / 2, 2.4))
+    for m in models:
+        ks = [
+            k
+            for k in ADAPTIVE_K
+            if (m, "alpacafarm-adaptive", "pair", f"{k}-queries", "asr") in metrics
+        ]
+        if not ks:
+            continue
+        keys = [(m, "alpacafarm-adaptive", "pair", f"{k}-queries", "asr") for k in ks]
+        y = [100 * metrics[k] for k in keys]
+        low = [100 * bounds[k][0] for k in keys]
+        high = [100 * bounds[k][1] for k in keys]
+        color = COLORS.get(m, m)
+        ax.plot(ks, y, color=color, linewidth=1.3, label=LABELS.get(m, m))
+        ax.fill_between(ks, low, high, color=color, alpha=0.18, linewidth=0)
+    ax.axvline(11, color="#999999", linestyle="--", linewidth=0.9, zorder=0)
+    # Above the axes, so no curve can run through it.
+    ax.text(
+        11,
+        1.02,
+        "11 fixed translations",
+        transform=ax.get_xaxis_transform(),
+        ha="center",
+        va="bottom",
+        fontsize=7.5,
+        color="#555555",
+    )
+    ax.set_xlim(1, 51)
+    ax.set_ylim(0, 100)
+    ax.set_xlabel("Adaptive queries")
+    ax.set_ylabel("Attack success (%)")
+    ax.legend(loc="lower right", handlelength=1.2, fontsize=7.5)
+    save(fig, out, "adaptive_curve")
+
+
+def family_model(fam: str, recipe: str) -> str:
+    return recipe if fam == "global" else f"{fam}-{recipe}"
+
+
+def family(metrics: dict, out: Path) -> None:
+    recipes = ("base", *FAMILY_RUNS)
+    fams = [
+        fam
+        for fam in ("global", *FAMILY)
+        if all(
+            (
+                family_model(fam, recipe),
+                MARKDOWN_TOLERANT,
+                "combined",
+                "any-language-extended",
+                "asr",
+            )
+            in metrics
+            for recipe in recipes
+        )
+    ]
+    if not set(fams) - {"global"}:  # Global alone has nothing to compare against.
+        drop(out, "family")
+        return
+    focus_fams = [
+        fam
+        for fam in fams
+        if fam != "global"
+        and all(
+            (family_model(fam, recipe), MARKDOWN_TOLERANT, "combined", side, "asr") in metrics
+            for recipe in recipes
+            for side in ("any-in-focus", "any-out-of-focus")
+        )
+    ]
+    if focus_fams:
+        fig, (left, right) = plt.subplots(
+            1, 2, figsize=(WIDTH, 2.2), gridspec_kw={"width_ratios": [5, 3.2], "wspace": 0.3}
+        )
+    else:
+        fig, left = plt.subplots(figsize=(WIDTH, 2.2))
+    names = ["Global" if fam == "global" else fam.title() for fam in fams]
+    overall = {
+        recipe: [
+            100 * asr(metrics, family_model(fam, recipe), "any-language-extended") for fam in fams
+        ]
+        for recipe in recipes
+    }
+    bars(left, names, overall, labels=True)
+    left.set_ylim(0, 115)
+    left.set_ylabel("Best of 19 (%)")
+    left.legend(loc="upper left", ncols=len(recipes), handlelength=1.1, fontsize=7.5)
+    if focus_fams:
+        last = recipes[-1]  # English-plus-low-resource: the deployed defense
+        focus_names = [fam.title() for fam in focus_fams]
+        focus = {
+            side: [100 * asr(metrics, family_model(fam, last), side) for fam in focus_fams]
+            for side in ("any-in-focus", "any-out-of-focus")
+        }
+        bars(right, focus_names, focus, labels=True)
+        right.set_ylim(0, 115)
+        right.set_ylabel("Best of 19 (%)")
+        right.legend(loc="upper left", ncols=1, handlelength=1.1, fontsize=7.5)
+        captions(
+            fig,
+            (left, right),
+            ("(a) Best of 19, by recipe", f"(b) {LABELS[last]}: in-focus vs. out-of-focus"),
+        )
+    save(fig, out, "family")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--results", type=Path, default=Path("results"))
     args = parser.parse_args()
     style()
     metrics, curves = read(args.results)
+    bounds = read_bounds(args.results)
     out = args.results / "figures"
     out.mkdir(parents=True, exist_ok=True)
     headline(metrics, out)
     scoring_rules(metrics, out)
     script_vs_language(metrics, out)
     training_dynamics(curves, out)
+    adaptive_curve(metrics, bounds, out)
+    family(metrics, out)
     print(f"figures written to {out}")
 
 
