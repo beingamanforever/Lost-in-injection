@@ -18,7 +18,7 @@ from pathlib import Path
 from huggingface_hub import CommitOperationAdd, HfApi
 
 OUTPUTS_REPO = "lost-in-injection-model-outputs"
-ADAPTER_REPOS = {  # One seed per run, so the names carry the training mix only.
+ADAPTER_REPOS = {  # Seed 0 of the published runs; ablations and other seeds get derived names.
     "english-only": "tiny-aya-secalign-english",
     "english-plus-high-resource": "tiny-aya-secalign-high-resource",
     "english-plus-low-resource": "tiny-aya-secalign-low-resource",
@@ -67,7 +67,9 @@ def main() -> None:
     adapter = args.run_dir / "adapter"
     if adapter.is_dir():
         files = sorted(path for path in adapter.iterdir() if path.is_file())
-        upload(api, f"{user}/{ADAPTER_REPOS[model]}", "model", adapter, files, "")
+        name = ADAPTER_REPOS.get(model, f"tiny-aya-secalign-{model}")
+        name += "" if seed == "0" else f"-seed{seed}"
+        upload(api, f"{user}/{name}", "model", adapter, files, "")
     upload(
         api,
         f"{user}/{OUTPUTS_REPO}",
