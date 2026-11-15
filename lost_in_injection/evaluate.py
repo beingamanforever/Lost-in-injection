@@ -16,8 +16,10 @@ import numpy as np
 from vllm import LLM
 
 from lost_in_injection import secalign
-from lost_in_injection.languages import INJECAGENT_VARIANTS
+from lost_in_injection.languages import INJECAGENT_VARIANTS, VARIANTS
 from lost_in_injection.secalign import ALPACA_ATTACKS, INJECAGENT_DEFENSE
+
+ALL_VARIANTS = [v.name for v in VARIANTS if v.group != "intermediate"]
 
 # Every model is evaluated on the second A10G (driver 535), where vLLM's sampler warm-up runs out
 # of memory at 0.85 and above; same value for every run.
@@ -115,7 +117,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--model", type=Path, required=True, help="Model directory, no '_'.")
     parser.add_argument("--out", type=Path, required=True, help="Evaluation output directory.")
-    parser.add_argument("--variants", nargs="+", default=["english"])
+    parser.add_argument("--variants", nargs="+", default=ALL_VARIANTS)
     parser.add_argument("--eval-root", type=Path, default=Path("data/eval"))
     parser.add_argument("--raw", type=Path, default=Path("data/raw"))
     parser.add_argument("--alpaca-defense", default="none", help="Meta-SecAlign prompting defense.")

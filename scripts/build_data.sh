@@ -7,16 +7,12 @@ GEN=.venv-gen/bin/python
 TRAIN=.venv-train/bin/python
 XLIT=.venv-xlit/bin/python
 MACHINE_TRANSLATED="hindi urdu french chinese swahili tamil amharic spanish"
+EXTRA_HELD_OUT="arabic turkish russian greek korean thai bengali yoruba"
 
-# Evaluation sets. A text that fails every machine-translation candidate is retried with the
-# Aya fallback; any other error stops the script.
+# Evaluation sets.
 $GEN -m lost_in_injection.eval_sets --variants english
-for v in $MACHINE_TRANSLATED; do
-  if ! $GEN -m lost_in_injection.eval_sets --variants $v > "$TMPDIR/eval-sets-$v.log" 2>&1; then
-    grep "texts failed the gates" "$TMPDIR/eval-sets-$v.log"  # Any other error stops the script.
-    $GEN -m lost_in_injection.eval_sets --variants $v --aya-fallback
-  fi
-done
+scripts/eval_sets.sh $MACHINE_TRANSLATED
+scripts/eval_sets.sh $EXTRA_HELD_OUT
 CUDA_VISIBLE_DEVICES="" $XLIT -m lost_in_injection.romanize --root data/eval
 $GEN -m lost_in_injection.eval_sets --variants romanized-hindi hinglish spanglish
 

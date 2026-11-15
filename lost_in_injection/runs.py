@@ -4,11 +4,28 @@ The final pairs are ordered with the multilingual slots first. A run writes slot
 `languages[k % len(languages)]` when k is below its non-English count and in English otherwise, so
 `multilingual-share-25`'s non-English pairs are the first half of `english-plus-low-resource`'s, in
 the same languages.
+
+Phase 2's regional Tiny Aya models (FAMILY) reuse Global's runs under a prefixed name, e.g.
+"fire-english-only", so `language` gives family runs exactly Global's slot languages, and
+`base_model` can tell which base checkpoint a (possibly mixed) list of run names trains on. Global
+runs keep their bare names so published paths, Hub repos and metric keys stay valid.
 """
+
+from pathlib import Path
 
 NUM_PAIRS = 5000
 MULTILINGUAL_SLOTS = 2500
 LOW_RESOURCE = ("hindi", "swahili", "romanized-hindi", "hinglish")
+FAMILY = ("fire", "earth", "water")
+FAMILY_RUNS = ("english-only", "english-plus-low-resource")
+# Regions each model's training focused on (Tiny Aya report, Sec. 2.3.3): Fire is South Asia only;
+# Earth and Water add Africa or Asia-Pacific to Europe and West Asia; Global covers them all.
+FOCUS = {
+    "global": {"europe", "west-asia", "south-asia", "asia-pacific", "africa"},
+    "fire": {"south-asia"},
+    "earth": {"europe", "west-asia", "africa"},
+    "water": {"europe", "west-asia", "asia-pacific"},
+}
 
 # run name: (languages of the non-English slots, number of non-English slots)
 RUNS = {
@@ -24,6 +41,22 @@ RUNS = {
 TRAINING_LANGUAGES = ("french", "chinese", "hindi", "swahili", "romanized-hindi", "hinglish")
 
 
+def split(name: str) -> tuple[str, str]:
+    """A run's model and its name within it: "fire-english-only" -> ("fire", "english-only")."""
+    for model in FAMILY:
+        if name.startswith(f"{model}-"):
+            return model, name.removeprefix(f"{model}-")
+    return "global", name
+
+
+def base_model(*names: str) -> Path:
+    """The base model folder a list of run names trains on; raises if they span more than one."""
+    models = {split(name)[0] for name in names}
+    if len(models) > 1:
+        raise ValueError(f"Runs span more than one model: {sorted(models)}")
+    return Path(f"models/tiny-aya-{models.pop()}")
+
+
 def language(run: str, slot: int) -> str:
-    languages, count = RUNS[run]
+    languages, count = RUNS[split(run)[1]]
     return languages[slot % len(languages)] if slot < count else "english"

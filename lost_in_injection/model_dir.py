@@ -3,7 +3,10 @@
 The runners read the tokenizer, and so the chat template, from the model directory, and take
 the base model from the path before its first "_" (Meta_SecAlign utils.py:188-196). This
 directory holds the official Tiny Aya weights as symlinks, plus a tokenizer whose chat
-template gains one `input` role for untrusted data.
+template gains one `input` role for untrusted data. Phase 2's regional models (fire, earth,
+water) share Global's architecture and tokenizer files, though Earth's tokenizer_config.json
+may differ; each model directory takes its tokenizer and chat template from its own pinned
+snapshot, and `add_input_role`'s guard fails loudly if a model's template does not match.
 """
 
 import argparse
@@ -15,7 +18,12 @@ from transformers import AutoTokenizer
 # The official template's last role branch. The `input` branch is inserted right after it.
 SYSTEM_BRANCH = "{% elif role == 'system' %}<|SYSTEM_TOKEN|>{{ message['content'] }}"
 WEIGHT_FILES = {"config.json", "generation_config.json", "model.safetensors.index.json"}
-REVISION = "af89d219b53ed9b13b8a4645f9c8028973510324"  # CohereLabs/tiny-aya-global, Sep 30, 2026
+REVISIONS = {  # pinned Sep-Nov 2026
+    "CohereLabs/tiny-aya-global": "af89d219b53ed9b13b8a4645f9c8028973510324",
+    "CohereLabs/tiny-aya-fire": "73500c80fcb6c8bea3e830c21d5d2920249a0e1a",
+    "CohereLabs/tiny-aya-earth": "0624fafbe200f930b89566fc4ec4da314ba48d89",
+    "CohereLabs/tiny-aya-water": "41a99216d12b3ef4881df762934186e5e4d2bbc1",
+}
 
 
 def add_input_role(template: str, added_tokens: list[str]) -> str:
@@ -41,7 +49,7 @@ def official_template(tokenizer) -> str:
 
 
 def build(model_id: str, out_dir: Path) -> None:
-    snapshot = Path(snapshot_download(model_id, revision=REVISION))
+    snapshot = Path(snapshot_download(model_id, revision=REVISIONS[model_id]))
     out_dir.mkdir(parents=True, exist_ok=True)
     for source in snapshot.iterdir():
         if source.name in WEIGHT_FILES or source.suffix == ".safetensors":

@@ -1,6 +1,18 @@
 from collections import Counter
+from pathlib import Path
 
-from lost_in_injection.runs import MULTILINGUAL_SLOTS, NUM_PAIRS, RUNS, TRAINING_LANGUAGES, language
+import pytest
+
+from lost_in_injection.runs import (
+    FAMILY,
+    MULTILINGUAL_SLOTS,
+    NUM_PAIRS,
+    RUNS,
+    TRAINING_LANGUAGES,
+    base_model,
+    language,
+    split,
+)
 
 
 def languages_of(run):
@@ -29,3 +41,26 @@ def test_each_run_balances_its_languages_and_keeps_half_english():
 def test_every_run_language_is_translated():
     used = {lang for languages, _ in RUNS.values() for lang in languages}
     assert used == set(TRAINING_LANGUAGES)
+
+
+def test_family_run_names_split_into_model_and_run():
+    assert split("fire-english-only") == ("fire", "english-only")
+    assert split("english-only") == ("global", "english-only")
+
+
+def test_base_model_rejects_runs_from_two_models():
+    assert base_model("fire-english-only", "fire-english-plus-low-resource") == Path(
+        "models/tiny-aya-fire"
+    )
+    assert base_model("english-only") == Path("models/tiny-aya-global")
+    with pytest.raises(ValueError):
+        base_model("fire-english-only", "english-only")
+    with pytest.raises(ValueError):
+        base_model("fire-english-only", "earth-english-only")
+
+
+def test_family_runs_use_globals_slot_languages():
+    for model in FAMILY:
+        for run in RUNS:
+            for slot in (0, MULTILINGUAL_SLOTS - 1, MULTILINGUAL_SLOTS, NUM_PAIRS - 1):
+                assert language(f"{model}-{run}", slot) == language(run, slot)

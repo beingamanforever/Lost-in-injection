@@ -7,6 +7,9 @@ model's own replies at temperature 0.8: chosen answers the clean instruction wit
 rejected answers the injected instruction alone, once per pair and language a run can use. Each
 label records its finish reason, so export can drop pairs that hit the token cap. Each pair also
 gets its untrusted data per language, built with Meta-SecAlign's attack code (utils.py:84-88).
+
+`--model` and `--out` pick which model self-generates and where its labels go, so Phase 2's
+family models each write a separate labelled file instead of sharing Global's.
 """
 
 import argparse
@@ -81,6 +84,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--model", type=Path, default=Path("models/tiny-aya-global"))
     parser.add_argument("--pairs", type=Path, default=Path("data/pairs"))
+    parser.add_argument("--out", type=Path, default=Path("data/pairs/labelled.jsonl"))
     args = parser.parse_args()
 
     translations = {
@@ -105,7 +109,7 @@ def main() -> None:
         pair["rejected"] = {
             lang: labels[injected_prompt(injection)] for lang, injection in pair["injected"].items()
         }
-    write_jsonl(args.pairs / "labelled.jsonl", pairs)
+    write_jsonl(args.out, pairs)
     capped = sum(label["finish_reason"] == "length" for label in labels.values())
     print(f"{len(pairs)} pairs, {len(labels)} labels, {capped} hit the token cap")
 

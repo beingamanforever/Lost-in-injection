@@ -8,6 +8,10 @@ The adapter's card and config name the local base-model folder, which the Hub re
 uploaded copies name the Hub model instead. Uploading again adds what is new, so it can run after
 training and again after evaluation. New repositories start private; they were made public for
 the submission.
+
+Phase 2's family runs are named "<model>-<run>" (e.g. "fire-english-only"), so their adapter
+repos get a derived name (`ADAPTER_REPOS.get` falls back to `tiny-aya-secalign-<run>`) and their
+cards and configs point at the matching `CohereLabs/tiny-aya-<model>`.
 """
 
 import argparse
@@ -23,8 +27,8 @@ ADAPTER_REPOS = {  # Seed 0 of the published runs; ablations and other seeds get
     "english-plus-high-resource": "tiny-aya-secalign-high-resource",
     "english-plus-low-resource": "tiny-aya-secalign-low-resource",
 }
-LOCAL_BASE = re.compile(r"[^\s\"']*/models/tiny-aya-global")
-HUB_BASE = "CohereLabs/tiny-aya-global"
+LOCAL_BASE = re.compile(r"[^\s\"']*/models/(tiny-aya-(?:global|fire|earth|water))")
+HUB_BASE = r"CohereLabs/\1"
 
 
 def output_files(run_dir: Path) -> list[Path]:

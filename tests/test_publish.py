@@ -39,3 +39,9 @@ def test_adapter_card_and_config_name_the_hub_base_model(tmp_path):
     assert content(card) == b"---\nbase_model: CohereLabs/tiny-aya-global\n---\n"
     assert content(config) == b'{"base_model_name_or_path": "CohereLabs/tiny-aya-global", "r": 64}'
     assert content(tmp_path / "summary.tsv") == tmp_path / "summary.tsv"
+
+
+def test_family_adapter_card_names_its_hub_model(tmp_path):
+    card = tmp_path / "README.md"
+    card.write_text("---\nbase_model: /home/ubuntu/lii/models/tiny-aya-fire\n---\n")
+    assert content(card) == b"---\nbase_model: CohereLabs/tiny-aya-fire\n---\n"

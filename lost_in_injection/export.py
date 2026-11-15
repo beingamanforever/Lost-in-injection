@@ -7,6 +7,9 @@ Chosen and rejected are the self-generated replies, closed the way the template 
 assistant turn. The leading BOS is removed because TRL adds its own. Pairs whose label hit the
 generation cap, or that exceed MAX_TOKENS in any run, are dropped from every run, so all runs
 train on the same pairs. CuratorKIT's export is checked to match the rows exactly.
+
+`--runs` may name family runs, e.g. "fire-english-only"; the base model is derived from the run
+names (`runs.base_model`), not passed in, so a Fire run cannot silently export against Global.
 """
 
 import argparse
@@ -17,7 +20,7 @@ from transformers import AutoTokenizer
 
 from lost_in_injection.languages import BY_NAME
 from lost_in_injection.records import read_jsonl, write_jsonl
-from lost_in_injection.runs import RUNS, language
+from lost_in_injection.runs import RUNS, base_model, language
 
 MAX_TOKENS = 2048  # Pairs longer than this are dropped, not truncated.
 
@@ -84,13 +87,12 @@ def export(rows: list[dict], out_dir: Path) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--model", type=Path, default=Path("models/tiny-aya-global"))
     parser.add_argument("--pairs", type=Path, default=Path("data/pairs/labelled.jsonl"))
     parser.add_argument("--out", type=Path, default=Path("data/runs"))
     parser.add_argument("--runs", nargs="+", default=list(RUNS))
     args = parser.parse_args()
 
-    tokenizer = AutoTokenizer.from_pretrained(args.model)
+    tokenizer = AutoTokenizer.from_pretrained(base_model(*args.runs))
     end = end_of_reply(tokenizer)
     pairs = read_jsonl(args.pairs)
     kept = [pair for pair in pairs if usable(tokenizer, pair, end)]
