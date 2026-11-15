@@ -8,7 +8,6 @@ GEN=.venv-gen/bin/python
 TRAIN=.venv-train/bin/python
 # Uploads go to private Hugging Face repositories; a failed upload is logged and never stops a run.
 publish() { $GEN -m lost_in_injection.publish --run-dir "$1" || echo "upload failed: $1" >&2; }
-ALL="english french chinese hindi swahili romanized-hindi hinglish urdu tamil amharic spanglish"
 SEED="${SEED:-0}"  # SEED=1 bash scripts/run_models.sh english-only trains and evaluates seed 1
 for run in "$@"; do
   out=runs/$run/$SEED
@@ -17,7 +16,5 @@ for run in "$@"; do
   publish "$out"  # The adapter first: the first A10G's working disk does not survive a reboot.
   roles=""
   [ "$run" = no-input-role ] && roles="--no-input-role"  # Tested the way it was trained
-  $GEN -m lost_in_injection.evaluate --model "$out/merged" --out "$out/eval" --variants $ALL $roles
-  $TRAIN -m lost_in_injection.utility --model "$out/merged" --out "$out/utility"
-  publish "$out"
+  bash scripts/evaluate_model.sh "$out/merged" "$out" $roles
 done

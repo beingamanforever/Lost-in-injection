@@ -68,6 +68,17 @@ python -m lost_in_injection.metrics   # every number, with bootstrap intervals
 python -m lost_in_injection.figures   # and lost_in_injection.tables for the report
 ```
 
+Phase 2 adds eight more attack languages, three regional models (fire, earth, water) and
+generation-quality checks:
+
+```bash
+bash scripts/eval_sets.sh arabic turkish russian greek korean thai bengali yoruba
+bash scripts/run_family.sh fire   # and earth, water: a model's own data, training and evaluation
+bash scripts/evaluate_model.sh models/tiny-aya-global runs/<model>/<seed> \
+  --variants arabic turkish russian greek korean thai bengali yoruba   # never reruns InjecAgent
+bash scripts/run_adaptive.sh      # adaptive attacks against the defended models
+```
+
 `lost_in_injection/` holds the pipeline, `scripts/` the runs, and `results/` the metrics and figures.
 
 ## Citation

@@ -4,7 +4,7 @@ set -euo pipefail
 source env.sh
 uv venv --clear .venv-gen --python 3.12
 VIRTUAL_ENV=.venv-gen uv pip install -r envs/gen.txt
-.venv-gen/bin/python -m nltk.downloader -d "$NLTK_DATA" averaged_perceptron_tagger_eng  # codemix.py
+.venv-gen/bin/python -m nltk.downloader -d "$NLTK_DATA" averaged_perceptron_tagger_eng punkt_tab  # codemix.py, generation_quality.py (ifeval checker)
 uv venv --clear .venv-train --python 3.12
 VIRTUAL_ENV=.venv-train uv pip install -r envs/train.txt
 uv venv --clear .venv-xlit --python 3.10
