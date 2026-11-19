@@ -7,6 +7,9 @@ model's own replies at temperature 0.8: chosen answers the clean instruction wit
 rejected answers the injected instruction alone, once per pair and language a run can use. Each
 label records its finish reason, so export can drop pairs that hit the token cap. Each pair also
 gets its untrusted data per language, built with Meta-SecAlign's attack code (utils.py:84-88).
+
+`--model` and `--out` pick which model self-generates and where its labels go, so Phase 2's
+family models each write a separate labelled file instead of sharing Global's.
 """
 
 import argparse
@@ -16,7 +19,7 @@ import numpy as np
 from vllm import LLM, SamplingParams
 
 from lost_in_injection import secalign
-from lost_in_injection.evaluate import GPU_MEMORY_UTILIZATION
+from lost_in_injection.evaluate import GPU_MEMORY_UTILIZATION, MAX_MODEL_LEN
 from lost_in_injection.records import read_jsonl, read_records, write_jsonl
 from lost_in_injection.runs import MULTILINGUAL_SLOTS, NUM_PAIRS, RUNS, TRAINING_LANGUAGES, language
 from lost_in_injection.skeleton import DATA_SEED
@@ -81,6 +84,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--model", type=Path, default=Path("models/tiny-aya-global"))
     parser.add_argument("--pairs", type=Path, default=Path("data/pairs"))
+    parser.add_argument("--out", type=Path, default=Path("data/pairs/labelled.jsonl"))
     args = parser.parse_args()
 
     translations = {
@@ -97,7 +101,12 @@ def main() -> None:
     def chosen_prompt(pair: dict) -> str:
         return f"{pair['clean']['instruction']}\n\n{pair['clean']['input']}"  # utils.py:112
 
-    llm = LLM(model=str(args.model), gpu_memory_utilization=GPU_MEMORY_UTILIZATION, seed=DATA_SEED)
+    llm = LLM(
+        model=str(args.model),
+        gpu_memory_utilization=GPU_MEMORY_UTILIZATION,
+        max_model_len=MAX_MODEL_LEN,
+        seed=DATA_SEED,
+    )
     rejected_prompts = {injected_prompt(i) for p in pairs for i in p["injected"].values()}
     labels = replies(llm, sorted({chosen_prompt(p) for p in pairs} | rejected_prompts))
     for pair in pairs:
@@ -105,7 +114,7 @@ def main() -> None:
         pair["rejected"] = {
             lang: labels[injected_prompt(injection)] for lang, injection in pair["injected"].items()
         }
-    write_jsonl(args.pairs / "labelled.jsonl", pairs)
+    write_jsonl(args.out, pairs)
     capped = sum(label["finish_reason"] == "length" for label in labels.values())
     print(f"{len(pairs)} pairs, {len(labels)} labels, {capped} hit the token cap")
 

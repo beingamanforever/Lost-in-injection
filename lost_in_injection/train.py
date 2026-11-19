@@ -5,6 +5,9 @@ it, its `lr_scheduler` field never reaches TRL (only `lr_scheduler_type` does), 
 `disable_dropout` would zero the LoRA dropout, so every value is passed explicitly. The resolved
 TRL DPOConfig and LoRA config are asserted against the recipe and saved before any step runs.
 Only the trained adapter is saved; TRL's frozen `ref` copy of it is the reference model.
+
+The base model is derived from `--run`, e.g. a "fire-..." run trains on `models/tiny-aya-fire`,
+so a Fire run cannot silently train on Global.
 """
 
 import argparse
@@ -19,6 +22,8 @@ from pathlib import Path
 os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
 
 from aligntune import create_rl_trainer  # noqa: E402
+
+from lost_in_injection.runs import base_model  # noqa: E402
 
 EFFECTIVE_BATCH = 64
 RECIPE = {
@@ -92,7 +97,6 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--run", required=True)
     parser.add_argument("--seed", type=int, default=0)
-    parser.add_argument("--model", type=Path, default=Path("models/tiny-aya-global"))
     parser.add_argument("--data-root", type=Path, default=Path("data/runs"))
     parser.add_argument("--out-root", type=Path, default=Path("runs"))
     # DPO runs chosen and rejected together, so micro-batch 2 is 4 sequences and runs out of
@@ -106,7 +110,8 @@ def main() -> None:
     if args.max_steps > 0:
         out = args.out_root / "smoke" / args.run / str(args.seed)
     rows = len(data.read_text().splitlines())
-    trainer = build(args.model, data, out / "logs", args.seed, args.micro_batch, args.max_steps)
+    model = base_model(args.run)
+    trainer = build(model, data, out / "logs", args.seed, args.micro_batch, args.max_steps)
     config = resolved_config(trainer, rows)
     config["git_commit"] = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
     config["data"] = {"path": str(data), "rows": rows}

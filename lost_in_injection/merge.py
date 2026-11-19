@@ -2,7 +2,9 @@
 
 vLLM 0.11.0 cannot serve LoRA on Tiny Aya, so the runners load merged weights. The
 merged folder takes every non-weight file (config, generation config, tokenizer and chat template)
-from the base model directory, so all models are evaluated alike and only the weights differ.
+from the base model directory, so all models are evaluated alike and only the weights differ. The
+base model is derived from the run name in `--run-dir` (runs/<run>/<seed>), so a Fire run cannot
+silently merge onto Global.
 """
 
 import argparse
@@ -13,6 +15,8 @@ import torch
 from peft import PeftModel
 from safetensors import safe_open
 from transformers import AutoModelForCausalLM
+
+from lost_in_injection.runs import base_model
 
 WEIGHT_INDEX = "model.safetensors.index.json"
 
@@ -43,12 +47,11 @@ def merge(base_dir: Path, adapter_dir: Path, out_dir: Path) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--run-dir", type=Path, required=True, help="runs/<run>/<seed>")
-    parser.add_argument("--model", type=Path, default=Path("models/tiny-aya-global"))
     args = parser.parse_args()
     out = args.run_dir / "merged"
     if "_" in str(out.resolve()):
         raise ValueError("Meta-SecAlign runners split model paths on '_'; use a path without one.")
-    merge(args.model, args.run_dir / "adapter", out)
+    merge(base_model(args.run_dir.parts[-2]), args.run_dir / "adapter", out)
 
 
 if __name__ == "__main__":

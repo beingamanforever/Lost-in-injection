@@ -2,37 +2,80 @@
 
 The runners read the tokenizer, and so the chat template, from the model directory, and take
 the base model from the path before its first "_" (Meta_SecAlign utils.py:188-196). This
-directory holds the official Tiny Aya weights as symlinks, plus a tokenizer whose chat
-template gains one `input` role for untrusted data.
+directory holds the official weights as symlinks, plus a tokenizer whose chat template has an
+`input` role for untrusted data. Tiny Aya (Global and Phase 2's fire, earth and water) and Qwen3
+drop roles they do not know, so `add_input_role` adds one to their official template, and its
+guard fails loudly if a template no longer matches. Llama 3.1 and 3.2 get the template
+Meta-SecAlign trains with (`meta_llama_template`), so Meta's own Meta-SecAlign-8B and our Llama
+runs see the same prompts. `--meta-secalign-adapter` fetches that adapter and checks it ships this
+template.
 """
 
 import argparse
+import ast
 from pathlib import Path
 
 from huggingface_hub import snapshot_download
 from transformers import AutoTokenizer
 
-# The official template's last role branch. The `input` branch is inserted right after it.
-SYSTEM_BRANCH = "{% elif role == 'system' %}<|SYSTEM_TOKEN|>{{ message['content'] }}"
+from lost_in_injection import secalign
+from lost_in_injection.runs import BASE_MODELS, model_path
+
 WEIGHT_FILES = {"config.json", "generation_config.json", "model.safetensors.index.json"}
-REVISION = "af89d219b53ed9b13b8a4645f9c8028973510324"  # CohereLabs/tiny-aya-global, Sep 30, 2026
+REVISIONS = {  # pinned Sep-Nov 2026
+    "CohereLabs/tiny-aya-global": "af89d219b53ed9b13b8a4645f9c8028973510324",
+    "CohereLabs/tiny-aya-fire": "73500c80fcb6c8bea3e830c21d5d2920249a0e1a",
+    "CohereLabs/tiny-aya-earth": "0624fafbe200f930b89566fc4ec4da314ba48d89",
+    "CohereLabs/tiny-aya-water": "41a99216d12b3ef4881df762934186e5e4d2bbc1",
+    "meta-llama/Llama-3.1-8B-Instruct": "0e9e39f249a16976918f6564b8830bc894c89659",
+    "meta-llama/Llama-3.2-3B-Instruct": "0cb88a4f764b7a12671c53f0838cd831a0843b95",
+    "Qwen/Qwen3-4B-Instruct-2507": "cdbee75f17c01a7cc42f958dc650907174af0554",
+}
+META_SECALIGN = ("facebook/Meta-SecAlign-8B", "fb9b039b45ab4fe5e94517efaaf19f80f4fedda1")
+# Per Hub owner: the official template's branch the `input` branch goes right after, the branch
+# (CONTENT marks the message text), and the template's name for that text.
+INPUT_BRANCHES = {
+    # Tiny Aya: a tool-result system turn, after the last role branch.
+    "CohereLabs": (
+        "{% elif role == 'system' %}<|SYSTEM_TOKEN|>{{ message['content'] }}",
+        "{% elif role == 'input' %}<|SYSTEM_TOKEN|><|START_TOOL_RESULT|>{{ CONTENT }}"
+        "<|END_TOOL_RESULT|>",
+        "message['content']",
+    ),
+    # Qwen3: its own `input` turn, the way Meta-SecAlign's Llama template renders it.
+    "Qwen": (
+        r"{{- '<|im_start|>' + message.role + '\n' + content + '<|im_end|>' + '\n' }}",
+        r"{%- elif message.role == 'input' %}{{- '<|im_start|>input\n' + (CONTENT)"
+        r" + '<|im_end|>\n' }}",
+        "content",
+    ),
+}
 
 
-def add_input_role(template: str, added_tokens: list[str]) -> str:
-    """Render role `input` as a tool-result system turn.
+def add_input_role(template: str, added_tokens: list[str], owner: str) -> str:
+    """Render role `input` as the model family's untrusted-data turn.
 
-    Tiny Aya's official template drops any role it does not know, so injected text in an
-    `input` turn would never reach the model. Added-token strings are removed from the
-    content so untrusted text cannot close the tool-result block early.
+    Added-token strings are removed from the content so untrusted text cannot close its turn
+    early with a fake delimiter.
     """
-    if template.count(SYSTEM_BRANCH) != 1:
-        raise ValueError("The official template no longer has exactly one system branch.")
-    content = "message['content']" + "".join(f" | replace({t!r}, '')" for t in added_tokens)
-    input_branch = (
-        "{% elif role == 'input' %}<|SYSTEM_TOKEN|><|START_TOOL_RESULT|>{{ "
-        f"{content} }}}}<|END_TOOL_RESULT|>"
-    )
-    return template.replace(SYSTEM_BRANCH, SYSTEM_BRANCH + input_branch)
+    anchor, branch, text = INPUT_BRANCHES[owner]
+    if template.count(anchor) != 1:
+        raise ValueError(f"The official {owner} template no longer has exactly one anchor branch.")
+    content = text + "".join(f" | replace({t!r}, '')" for t in added_tokens)
+    return template.replace(anchor, anchor + branch.replace("CONTENT", content))
+
+
+def meta_llama_template() -> str:
+    """Meta-SecAlign's Llama 3 template (its setup.py): no built-in date system prompt, and every
+    role, `input` included, rendered as its own header."""
+    for node in ast.walk(ast.parse((secalign.ROOT / "setup.py").read_text())):
+        if (
+            isinstance(node, ast.Assign)
+            and ast.unparse(node.targets[0]) == "tokenizer.chat_template"
+            and isinstance(node.value, ast.Constant)
+        ):
+            return node.value.value
+    raise ValueError("Meta_SecAlign setup.py no longer sets a literal chat template.")
 
 
 def official_template(tokenizer) -> str:
@@ -40,8 +83,17 @@ def official_template(tokenizer) -> str:
     return template["default"] if isinstance(template, dict) else template
 
 
+def chat_template(model_id: str, tokenizer) -> str:
+    if model_id.startswith("meta-llama/"):
+        return meta_llama_template()
+    added_tokens = [token.content for token in tokenizer.added_tokens_decoder.values()]
+    return add_input_role(official_template(tokenizer), added_tokens, model_id.split("/")[0])
+
+
 def build(model_id: str, out_dir: Path) -> None:
-    snapshot = Path(snapshot_download(model_id, revision=REVISION))
+    # Llama's repo also holds its original 16 GB checkpoint, which nothing here reads.
+    revision = REVISIONS[model_id]
+    snapshot = Path(snapshot_download(model_id, revision=revision, ignore_patterns=["original/*"]))
     out_dir.mkdir(parents=True, exist_ok=True)
     for source in snapshot.iterdir():
         if source.name in WEIGHT_FILES or source.suffix == ".safetensors":
@@ -50,21 +102,40 @@ def build(model_id: str, out_dir: Path) -> None:
             target.symlink_to(source)
 
     tokenizer = AutoTokenizer.from_pretrained(snapshot)
-    added_tokens = [token.content for token in tokenizer.added_tokens_decoder.values()]
-    tokenizer.chat_template = add_input_role(official_template(tokenizer), added_tokens)
+    tokenizer.chat_template = chat_template(model_id, tokenizer)
     tokenizer.save_pretrained(out_dir)
+
+
+def fetch_meta_secalign(adapter_dir: Path) -> None:
+    """Link Meta-SecAlign-8B's adapter files (gated) after checking its tokenizer's template."""
+    snapshot = Path(snapshot_download(META_SECALIGN[0], revision=META_SECALIGN[1]))
+    if official_template(AutoTokenizer.from_pretrained(snapshot)) != meta_llama_template():
+        raise ValueError("Meta-SecAlign-8B's chat template differs from Meta_SecAlign setup.py's.")
+    adapter_dir.mkdir(parents=True, exist_ok=True)
+    for name in ("adapter_config.json", "adapter_model.safetensors"):
+        target = adapter_dir / name
+        target.unlink(missing_ok=True)
+        target.symlink_to(snapshot / name)
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--model-id", default="CohereLabs/tiny-aya-global")
-    parser.add_argument("--out", type=Path, default=Path("models/tiny-aya-global"))
+    parser.add_argument("--model", choices=BASE_MODELS, default="global")
+    parser.add_argument(
+        "--meta-secalign-adapter",
+        type=Path,
+        help="Fetch Meta-SecAlign-8B into this folder instead.",
+    )
     args = parser.parse_args()
-    if "_" in str(args.out.resolve()):
+    if args.meta_secalign_adapter:
+        fetch_meta_secalign(args.meta_secalign_adapter)
+        return
+    out = model_path(args.model)
+    if "_" in str(out.resolve()):
         raise ValueError(
             "The Meta-SecAlign runners split model paths on '_'; use a path without one."
         )
-    build(args.model_id, args.out)
+    build(BASE_MODELS[args.model], out)
 
 
 if __name__ == "__main__":

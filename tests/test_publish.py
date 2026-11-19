@@ -1,4 +1,4 @@
-from lost_in_injection.publish import content, output_files
+from lost_in_injection.publish import adapter_repo, content, output_files
 
 
 def test_output_files_skip_symlinks_weights_and_checkpoints(tmp_path):
@@ -39,3 +39,25 @@ def test_adapter_card_and_config_name_the_hub_base_model(tmp_path):
     assert content(card) == b"---\nbase_model: CohereLabs/tiny-aya-global\n---\n"
     assert content(config) == b'{"base_model_name_or_path": "CohereLabs/tiny-aya-global", "r": 64}'
     assert content(tmp_path / "summary.tsv") == tmp_path / "summary.tsv"
+
+
+def test_family_adapter_card_names_its_hub_model(tmp_path):
+    card = tmp_path / "README.md"
+    card.write_text("---\nbase_model: /home/ubuntu/lii/models/tiny-aya-fire\n---\n")
+    assert content(card) == b"---\nbase_model: CohereLabs/tiny-aya-fire\n---\n"
+
+
+def test_other_family_adapter_card_names_its_hub_model(tmp_path):
+    card = tmp_path / "README.md"
+    card.write_text("---\nbase_model: /opt/lii/models/llama-3.1-8b-instruct\n---\n")
+    assert content(card) == b"---\nbase_model: meta-llama/Llama-3.1-8B-Instruct\n---\n"
+
+
+def test_adapter_repo_names():
+    assert adapter_repo("english-only") == "tiny-aya-secalign-english"
+    assert adapter_repo("fire-english-only") == "tiny-aya-secalign-fire-english-only"
+    assert adapter_repo("llama8b-english-only") == "Llama-3.1-8B-Instruct-secalign-english-only"
+    assert adapter_repo("llama3b-english-only") == "Llama-3.2-3B-Instruct-secalign-english-only"
+    assert adapter_repo("qwen-english-plus-low-resource") == (
+        "Qwen3-4B-Instruct-2507-secalign-english-plus-low-resource"
+    )

@@ -94,7 +94,7 @@ SCRIPTS = [  # The override and payload of one AlpacaFarm-Hacked injection, verb
 def read_metrics() -> dict:
     with METRICS.open() as file:
         return {(r["model"], r["benchmark"], r["setting"], r["variant"], r["metric"]): float(r["value"])
-                for r in csv.DictReader(file)}
+                for r in csv.DictReader(file) if r.get("seed", "0") == "0"}
 
 
 def asr(metrics: dict, model: str, variant: str, rule: str = "alpacafarm-markdown-tolerant") -> float:
