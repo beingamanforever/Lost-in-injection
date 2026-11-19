@@ -13,7 +13,8 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
-from vllm import LLM
+from vllm import LLM, SamplingParams
+from vllm.lora.request import LoRARequest
 
 from lost_in_injection import secalign
 from lost_in_injection.languages import INJECAGENT_VARIANTS, VARIANTS
@@ -24,19 +25,56 @@ ALL_VARIANTS = [v.name for v in VARIANTS if v.group != "intermediate"]
 # Every model is evaluated on the second A10G (driver 535), where vLLM's sampler warm-up runs out
 # of memory at 0.85 and above; same value for every run.
 GPU_MEMORY_UTILIZATION = 0.80
+# Tiny Aya's context length. Llama (128k) and Qwen3 (256k) are capped to it: their full-length
+# KV cache does not fit an A10G, and every model gets the same prompt-plus-reply budget.
+MAX_MODEL_LEN = 8192
 
 
 class SharedGpuLLM(LLM):
-    """vLLM engine with a fixed memory share that sends text prompts with a single BOS."""
+    """vLLM engine with a fixed memory share and context that sends text prompts with a single
+    BOS (none for Qwen, which has no BOS token)."""
 
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, gpu_memory_utilization=GPU_MEMORY_UTILIZATION, **kwargs)
-        self.bos_token = self.get_tokenizer().bos_token
+        super().__init__(
+            *args,
+            gpu_memory_utilization=GPU_MEMORY_UTILIZATION,
+            max_model_len=MAX_MODEL_LEN,
+            **kwargs,
+        )
+        self.bos_token = self.get_tokenizer().bos_token or ""
 
     def generate(self, prompts, *args, **kwargs):
         # The chat template already starts with BOS, and vLLM adds another to text prompts.
         prompts = [prompt.removeprefix(self.bos_token) for prompt in prompts]
         return super().generate(prompts, *args, **kwargs)
+
+
+class SharedGpuLoraLLM(SharedGpuLLM):
+    """The same engine with runtime LoRA (the runners enable it only for paths with '_').
+
+    Eager mode: capturing CUDA graphs with LoRA runs out of memory on the A10G at 0.80. It only
+    skips graph capture; decoding is unchanged.
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **{**kwargs, "enable_lora": True, "enforce_eager": True})
+
+
+def lora_generate(adapter: Path):
+    """The runners' generation (Meta_SecAlign utils.py:355-365) with the adapter applied at runtime.
+
+    Merging a LoRA update into bf16 weights rounds most of it away: each weight moves by about
+    1e-5, below bf16's step of about 1e-4 at typical weight sizes. vLLM 0.11 serves LoRA on Qwen3
+    but not on Tiny Aya, so this is used for Qwen only. `adapter` holds only adapter_config.json
+    and adapter_model.safetensors, since vLLM also loads a tokenizer from the adapter folder.
+    """
+    request = LoRARequest("adapter", 1, str(adapter))
+
+    def generate(llm_input, model, tokenizer, *_unused):
+        params = SamplingParams(temperature=0, max_tokens=8192, stop=tokenizer.eos_token)
+        return [r.outputs[0].text for r in model.generate(llm_input, params, lora_request=request)]
+
+    return generate
 
 
 def link_all(sources, target_dir: Path) -> None:
@@ -62,17 +100,22 @@ def evaluate(
     alpaca_defense: str,
     input_role: bool,
     run_injecagent: bool = True,
+    adapter: Path | None = None,
 ) -> None:
     model_dir, eval_root, raw_dir, out_dir = (
         p.resolve() for p in (model_dir, eval_root, raw_dir, out_dir)
     )
     check_no_underscore(model_dir)
     utils = secalign.load("utils")
-    utils.LLM = SharedGpuLLM
+    utils.LLM = SharedGpuLoraLLM if adapter else SharedGpuLLM
     alpaca = secalign.load("test")
     injecagent = secalign.load("test_injecagent")
     model, tokenizer = utils.load_vllm_model(str(model_dir))
     alpaca.load_vllm_model = lambda *_args, **_kwargs: (model, tokenizer)
+    if adapter:
+        if run_injecagent:
+            raise ValueError("--adapter covers AlpacaFarm only; pass --no-injecagent.")
+        alpaca.test_model_output_vllm = lora_generate(adapter.resolve())
 
     for variant in variants:
         work = out_dir / variant
@@ -125,6 +168,7 @@ def main() -> None:
     # InjecAgent always uses Meta-SecAlign's sandwich prompt, so a prompting-defense baseline is
     # identical to the base model there.
     parser.add_argument("--no-injecagent", action="store_false", dest="injecagent")
+    parser.add_argument("--adapter", type=Path, help="LoRA folder to apply at runtime to --model.")
     args = parser.parse_args()
     evaluate(
         args.model,
@@ -135,6 +179,7 @@ def main() -> None:
         args.alpaca_defense,
         args.input_role,
         args.injecagent,
+        args.adapter,
     )
 
 

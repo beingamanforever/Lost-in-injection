@@ -27,7 +27,7 @@ FAMILY_RECIPES = ("base", "english-only", "english-plus-low-resource")
 ISO_639_1 = {
     "english": "en", "french": "fr", "chinese": "zh", "swahili": "sw", "hindi": "hi",
     "arabic": "ar", "turkish": "tr", "russian": "ru", "greek": "el", "korean": "ko",
-    "thai": "th", "yoruba": "yo", "bengali": "bn",
+    "thai": "th", "bengali": "bn",
 }  # fmt: skip
 
 

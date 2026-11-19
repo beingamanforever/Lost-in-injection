@@ -30,9 +30,11 @@ cd ..
 
 mkdir -p marco-bench-mif/checker
 cd marco-bench-mif
-for stem in fr sw zh_local ar_local tr ru el ko th bn yo_local; do
+for stem in fr sw zh_local ar_local tr ru el ko th bn; do
   curl -fsSLO "$MARCO/$stem.jsonl"
 done
+# At this revision key 181 in zh_local.jsonl leaves the quotes around "\n\n" unescaped (invalid JSON).
+sed -i 's/（"\\n\\n"）/（\\"\\n\\n\\"）/' zh_local.jsonl
 cd checker
 for name in evaluation_main.py instructions.py instructions_registry.py instructions_util.py; do
   curl -fsSLO "$MARCO_CHECKER/$name"

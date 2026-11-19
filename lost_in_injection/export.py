@@ -38,7 +38,7 @@ def prompt(tokenizer, pair: dict, run: str) -> str:
     else:
         messages = [{"role": "user", "content": instruction}, {"role": "input", "content": data}]
     text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
-    return text.removeprefix(tokenizer.bos_token)
+    return text.removeprefix(tokenizer.bos_token or "")  # Qwen has no BOS
 
 
 def row(tokenizer, pair: dict, run: str, end: str) -> dict:
@@ -51,7 +51,8 @@ def row(tokenizer, pair: dict, run: str, end: str) -> dict:
 
 
 def num_tokens(tokenizer, text: str) -> int:
-    return len(tokenizer(text, add_special_tokens=False)["input_ids"]) + 1  # TRL's BOS
+    bos = tokenizer.bos_token is not None  # TRL adds the BOS, if the model has one
+    return len(tokenizer(text, add_special_tokens=False)["input_ids"]) + bos
 
 
 def usable(tokenizer, pair: dict, end: str) -> bool:
