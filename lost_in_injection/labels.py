@@ -19,7 +19,7 @@ import numpy as np
 from vllm import LLM, SamplingParams
 
 from lost_in_injection import secalign
-from lost_in_injection.evaluate import GPU_MEMORY_UTILIZATION
+from lost_in_injection.evaluate import GPU_MEMORY_UTILIZATION, MAX_MODEL_LEN
 from lost_in_injection.records import read_jsonl, read_records, write_jsonl
 from lost_in_injection.runs import MULTILINGUAL_SLOTS, NUM_PAIRS, RUNS, TRAINING_LANGUAGES, language
 from lost_in_injection.skeleton import DATA_SEED
@@ -101,7 +101,12 @@ def main() -> None:
     def chosen_prompt(pair: dict) -> str:
         return f"{pair['clean']['instruction']}\n\n{pair['clean']['input']}"  # utils.py:112
 
-    llm = LLM(model=str(args.model), gpu_memory_utilization=GPU_MEMORY_UTILIZATION, seed=DATA_SEED)
+    llm = LLM(
+        model=str(args.model),
+        gpu_memory_utilization=GPU_MEMORY_UTILIZATION,
+        max_model_len=MAX_MODEL_LEN,
+        seed=DATA_SEED,
+    )
     rejected_prompts = {injected_prompt(i) for p in pairs for i in p["injected"].values()}
     labels = replies(llm, sorted({chosen_prompt(p) for p in pairs} | rejected_prompts))
     for pair in pairs:

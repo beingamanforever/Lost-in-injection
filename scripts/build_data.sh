@@ -7,7 +7,7 @@ GEN=.venv-gen/bin/python
 TRAIN=.venv-train/bin/python
 XLIT=.venv-xlit/bin/python
 MACHINE_TRANSLATED="hindi urdu french chinese swahili tamil amharic spanish"
-EXTRA_HELD_OUT="arabic turkish russian greek korean thai bengali yoruba"
+EXTRA_HELD_OUT="arabic turkish russian greek korean thai bengali"
 
 # Evaluation sets.
 $GEN -m lost_in_injection.eval_sets --variants english

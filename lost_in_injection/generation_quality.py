@@ -21,11 +21,12 @@ from pathlib import Path
 import langdetect
 from vllm import LLM, SamplingParams
 
+from lost_in_injection.evaluate import GPU_MEMORY_UTILIZATION, MAX_MODEL_LEN
+
 # IFEval's and IndicIFEval's instruction checkers call langdetect.detect(), which is
 # non-deterministic unless the detector is seeded.
 langdetect.DetectorFactory.seed = 0
 
-GPU_MEMORY_UTILIZATION = 0.80
 MAX_TOKENS = 1280
 
 # Localized data files where both a localized and machine-translated version exist.
@@ -40,7 +41,6 @@ MARCO_LANGUAGES = [
     ("ko", "ko"),
     ("th", "th"),
     ("bn", "bn"),
-    ("yo", "yo_local"),
 ]
 
 
@@ -103,6 +103,7 @@ def generate_responses(model_dir: Path, prompts: list[str]) -> list[str]:
     llm = LLM(
         model=str(model_dir),
         gpu_memory_utilization=GPU_MEMORY_UTILIZATION,
+        max_model_len=MAX_MODEL_LEN,
         seed=0,
         dtype="bfloat16",
     )
@@ -110,9 +111,9 @@ def generate_responses(model_dir: Path, prompts: list[str]) -> list[str]:
     conversations = [[{"role": "user", "content": prompt}] for prompt in prompts]
     outputs = llm.chat(conversations, sampling_params, use_tqdm=True)
 
-    bos_id = llm.get_tokenizer().bos_token_id
+    bos_id = llm.get_tokenizer().bos_token_id  # None for Qwen, which uses no BOS
     first_ids = outputs[0].prompt_token_ids
-    if first_ids[0] != bos_id or first_ids[1] == bos_id:
+    if bos_id is not None and (first_ids[0] != bos_id or first_ids[1] == bos_id):
         raise RuntimeError(f"Expected exactly one leading BOS token, got {first_ids[:2]}")
 
     responses = []

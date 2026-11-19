@@ -9,10 +9,13 @@ from lost_in_injection.metrics import (
     ALL_LANGUAGES,
     MARKDOWN_TOLERANT,
     OFFICIAL,
+    PARAPHRASED,
     adaptive_rows,
     alpacafarm,
+    generation_difference_rows,
     injecagent,
     injecagent_file,
+    paraphrase_rows,
     prompts_to_first_success,
     region_focus_rows,
     resample,
@@ -104,7 +107,7 @@ def test_adaptive_rows_count_queries_to_first_success(tmp_path):
     (run_dir / "adaptive").mkdir(parents=True)
     write_jsonl(run_dir / "adaptive" / "cases.jsonl", cases)
 
-    rows = adaptive_rows([("model", "0", run_dir)], np.random.default_rng(0))
+    rows = adaptive_rows([("model", "0", run_dir)])
     asr_by_k = {
         int(r["variant"].removesuffix("-queries")): r["value"]
         for r in rows
@@ -126,12 +129,29 @@ def test_region_focus_splits_variants_by_model():
     cases = 5
     hijacked = {variant: np.zeros(cases, dtype=bool) for variant in ALL_LANGUAGES}
     combined_by_seed = {("fire-english-only", "0"): {MARKDOWN_TOLERANT: hijacked}}
-    rows = region_focus_rows(combined_by_seed, np.random.default_rng(0))
+    rows = region_focus_rows(combined_by_seed)
     by_variant = {r["variant"]: r for r in rows}
     assert {"in-focus-mean", "out-of-focus-mean", "any-in-focus", "any-out-of-focus"} == set(
         by_variant
     )
     assert by_variant["in-focus-mean"]["n"] == cases
+
+
+def test_adding_a_model_moves_no_other_interval():
+    rng = np.random.default_rng(0)
+    fire = {
+        ("fire-english-only", "0"): {
+            MARKDOWN_TOLERANT: {v: rng.random(40) < 0.3 for v in ALL_LANGUAGES}
+        }
+    }
+    earth = {
+        ("earth-english-only", "0"): {
+            MARKDOWN_TOLERANT: {v: rng.random(40) < 0.3 for v in ALL_LANGUAGES}
+        }
+    }
+    alone = region_focus_rows(fire)
+    together = region_focus_rows({**earth, **fire})  # Earth sorts first, so it draws first.
+    assert [r for r in together if r["model"] == "fire-english-only"] == alone
 
 
 def test_seed_mean_needs_more_than_one_seed():
@@ -143,3 +163,45 @@ def test_seed_mean_needs_more_than_one_seed():
     assert [(r["model"], r["variant"], r["seed"]) for r in rows] == [
         ("english-only", "english", "mean")
     ]
+
+
+def test_paraphrase_rows_pair_each_translation_with_its_english_rewording(tmp_path):
+    # Case 0 breaks only in French, case 1 only in the English rewording via Hindi, case 2 never.
+    eval_dir = tmp_path / "base" / "0" / "eval"
+    hacked = {"french": 0, "english-via-hindi": 1}
+    for variant in ["english", *PARAPHRASED, *(f"english-via-{v}" for v in PARAPHRASED)]:
+        outputs = ["Hacked!" if hacked.get(variant) == case else "No." for case in range(3)]
+        (eval_dir / variant).mkdir(parents=True)
+        for attack in ALPACA_ATTACKS:
+            path = eval_dir / variant / f"{attack}_none_loraalpha8.0_IH1_davinci_003_outputs.json"
+            path.write_text(json.dumps([{"output": output} for output in outputs]))
+    rows = paraphrase_rows([("base", "0", eval_dir.parent)])
+    value = {(r["benchmark"], r["variant"]): r["value"] for r in rows}
+    assert value[(OFFICIAL, "any-translated")] == pytest.approx(1 / 3)
+    assert value[(OFFICIAL, "any-english-rewording")] == pytest.approx(1 / 3)
+    assert value[(OFFICIAL, "mean-translated")] == pytest.approx(
+        1 / 21
+    )  # French alone, over the 7 non-English tries
+    assert value[(OFFICIAL, "translated-minus-english-rewording")] == 0
+
+
+def test_generation_difference_pairs_each_defense_with_its_family_base(tmp_path):
+    # Fire's defense gains prompt 1 and loses nothing; Global's base has no seed-0 run here.
+    for model, hits in (
+        ("fire-base", [1, 0]),
+        ("fire-english-only", [1, 1]),
+        ("english-only", [0, 0]),
+    ):
+        path = tmp_path / model / "0" / "generation" / "ifeval.jsonl"
+        path.parent.mkdir(parents=True)
+        entries = [{"language": "en", "key": k, "prompt_strict": h} for k, h in enumerate(hits)]
+        path.write_text("".join(json.dumps(e) + "\n" for e in entries))
+    run_dirs = [
+        (m, "0", tmp_path / m / "0") for m in ("fire-base", "fire-english-only", "english-only")
+    ]
+    rows = generation_difference_rows(run_dirs)
+    value = {(r["model"], r["benchmark"], r["variant"]): r["value"] for r in rows}
+    assert value == {
+        ("fire-english-only", "ifeval", "en"): 0.5,
+        ("fire-english-only", "all-generation", "all"): 0.5,
+    }
