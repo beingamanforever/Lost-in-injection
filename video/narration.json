@@ -5,7 +5,7 @@
   },
   {
     "id": "question",
-    "text": "Defenses like Meta-SecAlign teach models to treat that text as data. But they're built and tested in English. So we attacked them in eleven languages."
+    "text": "Defenses like Meta-SecAlign teach models to treat that text as data, but only in English. So we attacked them in eleven languages."
   },
   {
     "id": "scale",
@@ -25,11 +25,15 @@
   },
   {
     "id": "scoring",
-    "text": "The standard check only looks at how a reply starts. Defended models often finish the task, then add Hacked at the end. Counted properly, a defense that looked ninety percent safe lets one attack in three through."
+    "text": "The standard check only reads how a reply starts. Defended models often finish the task, then add Hacked. Counted properly, a defense that looked ninety percent safe lets one attack in three through."
   },
   {
     "id": "lowres",
     "text": "Adding low-resource injections to training narrows the gap in every model family we trained."
+  },
+  {
+    "id": "skills",
+    "text": "And the defenses keep Tiny Aya's skills: instruction following, knowledge and math barely move."
   },
   {
     "id": "close",
