@@ -113,7 +113,11 @@ def main() -> None:
     model = base_model(args.run)
     trainer = build(model, data, out / "logs", args.seed, args.micro_batch, args.max_steps)
     config = resolved_config(trainer, rows)
-    config["git_commit"] = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
+    # Modal images hold no .git; modal_app.py passes the launching checkout's commit instead.
+    config["git_commit"] = (
+        os.environ.get("GIT_COMMIT")
+        or subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
+    )
     config["data"] = {"path": str(data), "rows": rows}
     config["data"]["sha256"] = hashlib.sha256(data.read_bytes()).hexdigest()
     out.mkdir(parents=True, exist_ok=True)

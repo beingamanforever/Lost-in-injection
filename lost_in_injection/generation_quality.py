@@ -19,9 +19,11 @@ from collections import defaultdict
 from pathlib import Path
 
 import langdetect
+import torch
 from vllm import LLM, SamplingParams
+from vllm.lora.request import LoRARequest
 
-from lost_in_injection.evaluate import GPU_MEMORY_UTILIZATION, MAX_MODEL_LEN
+from lost_in_injection.evaluate import GPU_MEMORY_UTILIZATION, MAX_MODEL_LEN, small_gpu
 
 # IFEval's and IndicIFEval's instruction checkers call langdetect.detect(), which is
 # non-deterministic unless the detector is seeded.
@@ -99,17 +101,25 @@ def load_marco(raw_dir: Path):
 LOADERS = {"ifeval": load_ifeval, "indicifeval": load_indicifeval, "marco-bench-mif": load_marco}
 
 
-def generate_responses(model_dir: Path, prompts: list[str]) -> list[str]:
+def generate_responses(
+    model_dir: Path, prompts: list[str], adapter: Path | None = None
+) -> list[str]:
+    lora = {}
+    if adapter:
+        lora = {"enable_lora": True, "max_lora_rank": 64, "enforce_eager": small_gpu()}
     llm = LLM(
+        **lora,
         model=str(model_dir),
         gpu_memory_utilization=GPU_MEMORY_UTILIZATION,
         max_model_len=MAX_MODEL_LEN,
+        tensor_parallel_size=torch.cuda.device_count(),
         seed=0,
         dtype="bfloat16",
     )
     sampling_params = SamplingParams(temperature=0, max_tokens=MAX_TOKENS)
     conversations = [[{"role": "user", "content": prompt}] for prompt in prompts]
-    outputs = llm.chat(conversations, sampling_params, use_tqdm=True)
+    request = LoRARequest("adapter", 1, str(adapter.resolve())) if adapter else None
+    outputs = llm.chat(conversations, sampling_params, use_tqdm=True, lora_request=request)
 
     bos_id = llm.get_tokenizer().bos_token_id  # None for Qwen, which uses no BOS
     first_ids = outputs[0].prompt_token_ids
@@ -125,9 +135,12 @@ def generate_responses(model_dir: Path, prompts: list[str]) -> list[str]:
     return responses
 
 
-def run(model_dir: Path, out_dir: Path, benchmark: str, raw_dir: Path) -> None:
+def run(
+    model_dir: Path, out_dir: Path, benchmark: str, raw_dir: Path, adapter: Path | None = None
+) -> None:
     entries, score = LOADERS[benchmark](raw_dir)
-    responses = generate_responses(model_dir, [doc["prompt"] for _language, doc in entries])
+    prompts = [doc["prompt"] for _language, doc in entries]
+    responses = generate_responses(model_dir, prompts, adapter)
 
     out_dir.mkdir(parents=True, exist_ok=True)
     prompt_results_by_language = defaultdict(list)
@@ -156,8 +169,9 @@ def main() -> None:
     parser.add_argument("--out", type=Path, required=True, help="Output folder.")
     parser.add_argument("--benchmark", required=True, choices=sorted(LOADERS))
     parser.add_argument("--raw", type=Path, default=Path("data/raw"))
+    parser.add_argument("--adapter", type=Path, help="LoRA folder to apply at inference.")
     args = parser.parse_args()
-    run(args.model, args.out, args.benchmark, args.raw)
+    run(args.model, args.out, args.benchmark, args.raw, args.adapter)
 
 
 if __name__ == "__main__":

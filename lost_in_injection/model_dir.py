@@ -7,8 +7,8 @@ directory holds the official weights as symlinks, plus a tokenizer whose chat te
 drop roles they do not know, so `add_input_role` adds one to their official template, and its
 guard fails loudly if a template no longer matches. Llama 3.1 and 3.2 get the template
 Meta-SecAlign trains with (`meta_llama_template`), so Meta's own Meta-SecAlign-8B and our Llama
-runs see the same prompts. `--meta-secalign-adapter` fetches that adapter and checks it ships this
-template.
+runs see the same prompts. `--meta-secalign-adapter` fetches Meta-SecAlign-8B or -70B (by `--model`)
+and checks it ships this template.
 """
 
 import argparse
@@ -29,9 +29,13 @@ REVISIONS = {  # pinned Sep-Nov 2026
     "CohereLabs/tiny-aya-water": "41a99216d12b3ef4881df762934186e5e4d2bbc1",
     "meta-llama/Llama-3.1-8B-Instruct": "0e9e39f249a16976918f6564b8830bc894c89659",
     "meta-llama/Llama-3.2-3B-Instruct": "0cb88a4f764b7a12671c53f0838cd831a0843b95",
+    "meta-llama/Llama-3.3-70B-Instruct": "6f6073b423013f6a7d4d9f39144961bfbfbc386b",
     "Qwen/Qwen3-4B-Instruct-2507": "cdbee75f17c01a7cc42f958dc650907174af0554",
 }
-META_SECALIGN = ("facebook/Meta-SecAlign-8B", "fb9b039b45ab4fe5e94517efaaf19f80f4fedda1")
+META_SECALIGN = {  # base model: (adapter repo, revision), pinned Nov 2026
+    "llama8b": ("facebook/Meta-SecAlign-8B", "fb9b039b45ab4fe5e94517efaaf19f80f4fedda1"),
+    "llama70b": ("facebook/Meta-SecAlign-70B", "09e225033f7b1ee9a52bf56696a6d563e07ac2b7"),
+}
 # Per Hub owner: the official template's branch the `input` branch goes right after, the branch
 # (CONTENT marks the message text), and the template's name for that text.
 INPUT_BRANCHES = {
@@ -67,14 +71,18 @@ def add_input_role(template: str, added_tokens: list[str], owner: str) -> str:
 
 def meta_llama_template() -> str:
     """Meta-SecAlign's Llama 3 template (its setup.py): no built-in date system prompt, and every
-    role, `input` included, rendered as its own header."""
+    role, `input` included, rendered as its own header.
+
+    The literal in setup.py ends with the indentation before its closing quotes, which renders as
+    "\n    " after every generation prompt. The released Meta-SecAlign tokenizers, which Meta's
+    runners load to test those models, render without it, so it is stripped here."""
     for node in ast.walk(ast.parse((secalign.ROOT / "setup.py").read_text())):
         if (
             isinstance(node, ast.Assign)
             and ast.unparse(node.targets[0]) == "tokenizer.chat_template"
             and isinstance(node.value, ast.Constant)
         ):
-            return node.value.value
+            return node.value.value.rstrip()
     raise ValueError("Meta_SecAlign setup.py no longer sets a literal chat template.")
 
 
@@ -106,11 +114,42 @@ def build(model_id: str, out_dir: Path) -> None:
     tokenizer.save_pretrained(out_dir)
 
 
-def fetch_meta_secalign(adapter_dir: Path) -> None:
-    """Link Meta-SecAlign-8B's adapter files (gated) after checking its tokenizer's template."""
-    snapshot = Path(snapshot_download(META_SECALIGN[0], revision=META_SECALIGN[1]))
-    if official_template(AutoTokenizer.from_pretrained(snapshot)) != meta_llama_template():
-        raise ValueError("Meta-SecAlign-8B's chat template differs from Meta_SecAlign setup.py's.")
+# Conversations with every role the runners and Meta's template use, for comparing templates.
+SAMPLE_CHATS = [
+    [{"role": "user", "content": "Summarise this."}, {"role": "input", "content": "Data. Hacked!"}],
+    [
+        {"role": "system", "content": "Be brief."},
+        {"role": "user", "content": "Hi"},
+        {"role": "assistant", "content": "Hello"},
+        {"role": "user", "content": "Again"},
+        {"role": "input", "content": " padded "},
+    ],
+]
+
+
+def same_prompts(tokenizer, template: str) -> bool:
+    """Whether `template` renders every sample chat exactly like the tokenizer's own template."""
+
+    def render(chat_template: str, chat: list[dict], generation: bool) -> str:
+        return tokenizer.apply_chat_template(
+            chat, chat_template=chat_template, tokenize=False, add_generation_prompt=generation
+        )
+
+    own = official_template(tokenizer)
+    return all(
+        render(own, chat, g) == render(template, chat, g)
+        for chat in SAMPLE_CHATS
+        for g in (True, False)
+    )
+
+
+def fetch_meta_secalign(model: str, adapter_dir: Path) -> None:
+    """Link a Meta-SecAlign adapter's files (gated) after checking that its tokenizer renders the
+    same prompts as our Llama template (the released templates differ only in indentation)."""
+    repo, revision = META_SECALIGN[model]
+    snapshot = Path(snapshot_download(repo, revision=revision))
+    if not same_prompts(AutoTokenizer.from_pretrained(snapshot), meta_llama_template()):
+        raise ValueError(f"{repo}'s chat template renders differently from ours.")
     adapter_dir.mkdir(parents=True, exist_ok=True)
     for name in ("adapter_config.json", "adapter_model.safetensors"):
         target = adapter_dir / name
@@ -124,14 +163,14 @@ def main() -> None:
     parser.add_argument(
         "--meta-secalign-adapter",
         type=Path,
-        help="Fetch Meta-SecAlign-8B into this folder instead.",
+        help="Fetch --model's Meta-SecAlign adapter into this folder instead.",
     )
     args = parser.parse_args()
     if args.meta_secalign_adapter:
-        fetch_meta_secalign(args.meta_secalign_adapter)
+        fetch_meta_secalign(args.model, args.meta_secalign_adapter)
         return
     out = model_path(args.model)
-    if "_" in str(out.resolve()):
+    if "_" in str(out.absolute()):  # the runners see this string, not the physical path
         raise ValueError(
             "The Meta-SecAlign runners split model paths on '_'; use a path without one."
         )
