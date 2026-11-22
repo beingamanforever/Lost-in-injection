@@ -390,7 +390,7 @@ More data points the same way: our run that keeps every English pair and adds th
 *Why Hindi in particular.* In every model's low-resource data, the rejected answer to a Hindi injection is in Hindi (95-99% of such pairs) and the preferred answer is in English (0% Hindi), so training can lower its loss either by ignoring the injection or by never writing Hindi. Tiny Aya learns the first; the over-trained Llama partly learns the second, and then answers 99% of Hindi prompts in English.
 Meta-SecAlign-70B's 8-point loss on IndicIFEval is not this: it still answers 92% of Hindi prompts in Hindi, like its undefended model.
 A rerun on Meta's data scale, or with preferred answers that keep the user's language, would test this account; we have not run it.
-TODO: MATH-500 / MGSM for Tiny Aya.
+Math reasoning does not move on Tiny Aya Global either: MATH-500 goes from 16.0% undefended to 16.8% with the English-only defense and 15.6% with the low-resource one (500 problems, so within noise), and MGSM, averaged over its 11 languages, from 32.0% to 32.7% and 32.7% (defenses on training seed 1; lm-eval's MATH-500 and native chain-of-thought MGSM through AuditKIT).
 
 **Serving speed.**
 vLLM output tokens per second on one H100, 256 tokens in and out:
