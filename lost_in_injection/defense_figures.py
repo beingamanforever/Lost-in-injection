@@ -37,8 +37,8 @@ DEFENSES = [
     ("isolation", "Isolation prompt"),
     ("promptguard", "Prompt Guard 2 filter"),
     ("meta-secalign", "Meta-SecAlign"),
-    ("english-only", "Our DPO, English"),
-    ("english-plus-low-resource", "Our DPO, + low-resource"),
+    ("english-only", "Ours, English-only"),
+    ("english-plus-low-resource", "Ours, + low-resource"),
 ]
 LANGUAGES = [
     ("english", "English"),
@@ -46,7 +46,7 @@ LANGUAGES = [
     ("chinese", "Chinese"),
     ("hindi", "Hindi"),
     ("swahili", "Swahili"),
-    ("romanized-hindi", "Hindi\n(Latin)"),
+    ("romanized-hindi", "Romanized\nHindi"),
     ("hinglish", "Hinglish"),
     ("urdu", "Urdu"),
     ("tamil", "Tamil"),
@@ -84,7 +84,7 @@ def rows_axes(ax, labels: list[str]) -> None:
 def defense_gap(acl: Path, out: Path, rule: str) -> None:
     """English attack success beside the rate when the attacker may try all 11 languages."""
     rows = [r for r in read(acl / "judged_language_risk.csv") if r["rule"] == rule]
-    fig, axes = plt.subplots(1, len(MODELS), figsize=(WIDTH, 2.7), sharey=True)
+    fig, axes = plt.subplots(1, len(MODELS), figsize=(WIDTH, 2.4), sharey=True)
     for ax, (family, title) in zip(axes, MODELS, strict=True):
         for i, (run, _) in enumerate(DEFENSES):
             english = rate(rows, model_name(family, run), "english")
@@ -168,15 +168,15 @@ TRIES = [
 ]
 TRY_PANELS = [
     ("base", "No defense"),
-    ("english-only", "Our DPO, English"),
-    ("english-plus-low-resource", "Our DPO, + low-resource"),
+    ("english-only", "Ours, English-only"),
+    ("english-plus-low-resource", "Ours, + low-resource"),
 ]
 
 
 def equal_budget(acl: Path, out: Path) -> None:
     """Cases hijacked by k random tries of each kind on Tiny Aya Global, the same 208 cases."""
     rows = read(acl / "equal_budget.csv")
-    fig, axes = plt.subplots(1, len(TRY_PANELS), figsize=(WIDTH, 2.2))
+    fig, axes = plt.subplots(1, len(TRY_PANELS), figsize=(WIDTH, 2.1))
     for ax, (model, title) in zip(axes, TRY_PANELS, strict=True):
         for family, colour, dash, _ in TRIES:
             picked = sorted(
@@ -225,9 +225,9 @@ def equal_budget(acl: Path, out: Path) -> None:
 SCORED = [
     ("base", "Tiny Aya, no defense"),
     ("promptguard", "Tiny Aya, Prompt Guard 2"),
-    ("english-only", "Tiny Aya, our DPO"),
-    ("qwen-english-only", "Qwen3, our DPO"),
-    ("llama8b-english-only", "Llama 8B, our DPO"),
+    ("english-only", "Tiny Aya, English-only"),
+    ("qwen-english-only", "Qwen3, English-only"),
+    ("llama8b-english-only", "Llama 8B, English-only"),
     ("llama8b-meta-secalign", "Llama 8B, Meta-SecAlign"),
     ("llama70b-meta-secalign", "Llama 70B, Meta-SecAlign"),
 ]
@@ -277,7 +277,7 @@ FAMILIES = [
 def low_resource(acl: Path, out: Path) -> None:
     """Rate over all 11 languages: English-only training, then with low-resource injections."""
     rows = read(acl / "judged_language_risk.csv")
-    fig, axes = plt.subplots(1, 2, figsize=(WIDTH, 2.0), sharey=True)
+    fig, axes = plt.subplots(1, 2, figsize=(WIDTH, 1.8), sharey=True)
     for ax, (rule, title) in zip(
         axes,
         [("markdown-tolerant", "Reply starts with “Hacked”"), ("judged", "LLM judge")],
@@ -311,7 +311,7 @@ def low_resource(acl: Path, out: Path) -> None:
     )
     handles = [
         plt.Line2D(
-            [], [], marker="o", color=ENGLISH_ONLY, linestyle="none", label="Trained on English"
+            [], [], marker="o", color=ENGLISH_ONLY, linestyle="none", label="English-only training"
         ),
         plt.Line2D(
             [],
@@ -319,7 +319,7 @@ def low_resource(acl: Path, out: Path) -> None:
             marker="o",
             color=LOW_RESOURCE,
             linestyle="none",
-            label="+ Hindi, Swahili, romanized Hindi, Hinglish",
+            label="+ Low-resource: Hindi, Swahili, romanized Hindi, Hinglish",
         ),
     ]
     fig.legend(handles=handles, loc="upper center", ncol=2, bbox_to_anchor=(0.58, 1.15))
@@ -327,13 +327,13 @@ def low_resource(acl: Path, out: Path) -> None:
 
 
 COSTS = [
-    ("english-only", "base", "Tiny Aya, our DPO"),
-    ("english-plus-low-resource", "base", "Tiny Aya, our DPO + low-res."),
-    ("qwen-english-only", "qwen-base", "Qwen3, our DPO"),
-    ("qwen-english-plus-low-resource", "qwen-base", "Qwen3, our DPO + low-res."),
+    ("english-only", "base", "Tiny Aya, English-only"),
+    ("english-plus-low-resource", "base", "Tiny Aya, + low-resource"),
+    ("qwen-english-only", "qwen-base", "Qwen3, English-only"),
+    ("qwen-english-plus-low-resource", "qwen-base", "Qwen3, + low-resource"),
     ("llama8b-meta-secalign", "llama8b-base", "Llama 8B, Meta-SecAlign"),
-    ("llama8b-english-only", "llama8b-base", "Llama 8B, our DPO"),
-    ("llama8b-english-plus-low-resource", "llama8b-base", "Llama 8B, our DPO + low-res."),
+    ("llama8b-english-only", "llama8b-base", "Llama 8B, English-only"),
+    ("llama8b-english-plus-low-resource", "llama8b-base", "Llama 8B, + low-resource"),
     ("llama70b-meta-secalign", "llama70b-base", "Llama 70B, Meta-SecAlign"),
 ]
 BENCHMARKS = [
@@ -369,7 +369,7 @@ def utility_change(metrics_csv: Path, out: Path) -> None:
     """Each defense's score minus the same model's undefended score, per benchmark."""
     scores = utility_scores(metrics_csv)
     rows = [c for c in COSTS if any((c[0], b) in scores for b, *_ in BENCHMARKS)]
-    fig, axes = plt.subplots(1, len(BENCHMARKS), figsize=(WIDTH, 2.3), sharey=True)
+    fig, axes = plt.subplots(1, len(BENCHMARKS), figsize=(WIDTH, 2.05), sharey=True)
     for ax, (benchmark, _, _, title) in zip(axes, BENCHMARKS, strict=True):
         ax.axvspan(-2.5, 2.5, color="#f2f2f2", linewidth=0)
         ax.axvline(0, color="#9a9a9a", linewidth=0.8)
