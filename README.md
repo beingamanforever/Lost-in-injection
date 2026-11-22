@@ -22,7 +22,7 @@
 
 Agents read text an attacker can write, and the strongest open defense, Meta-SecAlign, teaches a model to treat that text as data.
 It was built and tested in English.
-We attacked eight defenses on four model families, from Tiny Aya (3B) to Llama 3.3 (70B), with the same injections in 11 languages, scripts and code-mixes (18 on Tiny Aya), and scored 940,992 replies three ways.
+We attacked eight defenses on four model families, from Tiny Aya (3B) to Llama 3.3 (70B), with the same injections in 11 languages, scripts and code-mixes (18 on most runs), and scored 940,992 replies three ways.
 
 - **Trained defenses transfer.** Trained on English injections alone, the defense cuts attack success in every language as far as in English, including languages no run saw. No single language beats English by more than a few points, for our defenses on Tiny Aya, Qwen3 and Llama 3.1 and for Meta's own Meta-SecAlign-8B and -70B.
 - **The input filter does not.** Meta's Prompt Guard 2 removes 33-71% of English attacks but only 6-35% of Swahili and 7-12% of romanized-Hindi ones. Behind it, one Swahili attempt hijacks Tiny Aya in 83% of cases, against 39% in English.
@@ -34,6 +34,8 @@ We attacked eight defenses on four model families, from Tiny Aya (3B) to Llama 3
 ![English against all 11 languages, for every defense and model](results/figures/defense_gap.png)
 
 <sub>Cases hijacked (%) in English (open) and when the attacker may try all 11 languages (filled); an LLM judge decides what counts as a hijack.</sub>
+
+<sub>\* The models do not claim the same languages. Tiny Aya's model cards list every language we test, Qwen3's release all but Amharic, and Llama 3.1 and 3.3 only English, French, Hindi, Spanish and Thai. Undefended Llama 3.1 8B follows non-English injections so rarely that its gaps say little about the defense. The low-resource training mix is Hindi, Swahili, romanized Hindi and Hinglish. [Table 1 of the report](REPORT.md#which-model-was-tested-on-what) lists which model was tested on which languages and benchmarks.</sub>
 
 <table>
   <tr>

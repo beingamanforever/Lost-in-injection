@@ -45,6 +45,8 @@ The same recipe on Qwen3-4B and Llama 3.1 8B, beside Meta's own Meta-SecAlign-8B
 
 *Figure 1. English attack success (open circle) beside the rate when the attacker may try all 11 languages on each case (filled), for every defense and model; the LLM judge decides what counts as a hijack. The line between them is what switching languages adds. Figure A1 shows the same with Meta-SecAlign's starts-with rule.*
 
+\* *Tiny Aya's model cards list every language we test and Qwen3's all but Amharic; of the core variants, Llama 3.1 and 3.3 list only English, French and Hindi, and undefended Llama 3.1 8B follows non-English injections so rarely that its gaps say little. Table 1 shows which model was tested on which languages and benchmarks.*
+
 ## 1. Problem and approach
 
 ### Why this problem
@@ -145,9 +147,29 @@ Table A1 shows one injection in all 11 core variants.
 | High-resource | French, Chinese | High-resource run |
 | Low-resource | Hindi, Swahili, Hindi in Latin script, Hinglish | Low-resource run |
 | Held out | Urdu, Tamil, Amharic, Spanglish | Never |
-| Extra held out | Arabic, Turkish, Russian, Greek, Korean, Thai, Bengali | Never; Tiny Aya models only |
+| Extra held out | Arabic, Turkish, Russian, Greek, Korean, Thai, Bengali | Never; tested on every model, but not on the reminder prompt, the ablations or Llama 3.3 70B's prompting and filter runs |
 
 Hindi, Urdu, romanized Hindi and Hinglish carry the same instruction in three scripts and two mixes, so they separate script from meaning.
+
+### Which model was tested on what
+
+The models do not all claim the same languages, and not every model got every test.
+Table 1 lists both, so each result can be read against what the model is meant to handle.
+
+*Table 1. Language support and test coverage per model.*
+
+| | Tiny Aya Global, Fire, Earth, Water | Qwen3-4B | Llama 3.1 8B | Llama 3.3 70B |
+|---|---|---|---|---|
+| Model card lists, of our 16 languages\* | All 16 | 15, not Amharic | 5: English, French, Hindi, Spanish, Thai | The same 5 |
+| Undefended model follows the injection in, of the 11 core variants\*\* | All 11 | All 11 | English only | 7 (starts-with rule), 10 (judge) |
+| Attacked in | 18 variants | 18 variants | 18 variants | 18 (undefended, Meta-SecAlign); 11 (prompting, filter) |
+| Defenses | Ours: English-only, + low-resource (Global also + high-resource, 3 seeds, 5 ablations); prompting and filter on Global | Ours: English-only, + low-resource; sandwich, isolation, filter | Ours: English-only, + low-resource, added mix; Meta-SecAlign-8B; sandwich, isolation, filter | Meta-SecAlign-70B; sandwich, isolation, filter |
+| Training injections, + low-resource run | Hindi, Swahili, romanized Hindi, Hinglish (and English) | Same | Same | Not trained |
+| Utility scores | Global-MMLU-Lite; IFEval, IndicIFEval, Marco-Bench-MIF; MATH-500 and MGSM on Global | IFEval, IndicIFEval, Marco-Bench-MIF; Global-MMLU-Lite undefended only | Global-MMLU-Lite; IFEval, IndicIFEval, Marco-Bench-MIF | Global-MMLU-Lite; IFEval, IndicIFEval, Marco-Bench-MIF |
+| Agent benchmarks | InjecAgent (English, Hindi) on Global, Fire, Earth | InjecAgent, undefended only | InjecAgent; AgentDojo (English, Hindi, Swahili, Chinese, Tamil) | InjecAgent |
+
+\* From each model's card, or for Qwen3 its release announcement (119 languages and dialects). No card lists romanized Hindi, Hinglish or Spanglish, which are scripts and mixes rather than languages.
+\*\* A language counts when the undefended model obeys injections in it at least half as often as in English. Llama 3.1 8B understands French but follows only 3% of French injections undefended, so for it there is little non-English attack success for any defense to remove, and its multilingual gaps say little about the defense.
 
 ### Translation gates and quality
 
@@ -241,12 +263,12 @@ The seven extra held-out languages fall the same way, from 42-86% to 2.2-6.4%, e
 Script does not matter: Hindi, Urdu, romanized Hindi and Hinglish all stay between 2.2% and 9.1% (Figure A3).
 
 The same holds beyond Tiny Aya Global.
-With one try per language, the worst single language is within a few points of English, or below it, for every trained defense (Table 1).
+With one try per language, the worst single language is within a few points of English, or below it, for every trained defense (Table 2).
 That includes Meta's own Meta-SecAlign-8B and -70B, and Tiny Aya Fire, Earth and Water, whose transfer gaps are +0.4, -2.8 and -1.8 points.
 Qwen3's defense is weaker overall, 64% of English cases under the judge, but weakest in English.
 The defense appears to have learned "text in the input role is data", not "ignore English instructions".
 
-*Table 1. Cases hijacked (%), one try per language, LLM judge.*
+*Table 2. Cases hijacked (%), one try per language, LLM judge.*
 
 | Model, defense | English | Mean of the other 10 | Worst single language |
 |---|---|---|---|
@@ -271,7 +293,7 @@ Undefended Llama 3.1 8B follows only 0-27% of non-English injections under the s
 Prompt Guard 2 is a separate 86M-parameter classifier that reads the data and blanks it if it looks like an injection.
 It removes 33-71% of English attacks, depending on the model behind it, but only 6-35% of Swahili ones and 7-12% of romanized-Hindi ones (Figure 3).
 Code-mixes that keep English words are caught best: 86-92% of Spanglish.
-Because the filter sits in front of the model, the blind spot follows it: on Tiny Aya, one Swahili attempt gets through in 83% of cases, more than twice the English rate of 39%, and Swahili is the worst language behind the filter on Llama 3.3 70B too (Table 1).
+Because the filter sits in front of the model, the blind spot follows it: on Tiny Aya, one Swahili attempt gets through in 83% of cases, more than twice the English rate of 39%, and Swahili is the worst language behind the filter on Llama 3.3 70B too (Table 2).
 It is the only defense we tested whose worst single language is far above English.
 
 Prompting defenses barely help in any language: told to ignore commands in the data, Tiny Aya still obeys 85% of English injections, and the sandwich and isolation prompts still let 22-99% of English attacks through, depending on the model.
@@ -346,7 +368,8 @@ Knowledge barely moves: every defense stays within 2.2 points of its undefended 
 On Tiny Aya, instruction following holds too: paired over 6,441 prompts from IFEval, IndicIFEval and Marco-Bench-MIF in 12 languages, English-only training changes it by -0.7 points (95% CI -1.6 to 0.2) and low-resource training by +1.5 (0.7 to 2.4).
 On Llama 3.1 8B our recipe, tuned on Tiny Aya, costs 8.3 IFEval points with English-only data and 14.4 with low-resource data, where Meta-SecAlign-8B costs 0.9.
 Meta-SecAlign-70B keeps English instruction following (-1.9) but loses 8.0 points in Hindi.
-TODO: Qwen3's rows (rerun with the runtime adapter) and MATH-500 / MGSM for Tiny Aya.
+On Qwen3 our English-only defense costs 3.0 IFEval points and 6.9 in Hindi, and the low-resource one 1.3 and 3.7: training on Hindi injections halves the loss in Hindi.
+TODO: MATH-500 / MGSM for Tiny Aya.
 
 **Serving speed.**
 vLLM output tokens per second on one H100, 256 tokens in and out:
