@@ -437,7 +437,18 @@ InjecAgent says little at 3.35B: only 36-40% of the undefended Tiny Aya's replie
 AgentDojo, with its injection template translated into Hindi, Swahili, Chinese and Tamil, is too hard for Llama 3.1 8B: it solves 16.5% of tasks without an attack, and undefended attacks succeed in only 1.9% of English cases, so differences between languages and defenses sit near the floor.
 Our low-resource defense finishes at 0.1-1.5% per language.
 Amharic was dropped there because one sentence of its template missed the back-translation gate (0.78 against 0.80).
-TODO: final AgentDojo numbers for the undefended, Meta-SecAlign and English-only runs.
+
+*Table 3. AgentDojo on Llama 3.1 8B (949 attack cases per language).*
+
+| Defense | Tasks solved without an attack | Attack success per language | Any of the languages |
+|---|---|---|---|
+| Undefended | 16.5% | 0.7-1.9% (English, Hindi, Swahili, Chinese, Tamil) | 3.7% |
+| Meta-SecAlign-8B | 21.7% | 0.1-0.2% (English, Hindi, Swahili) | 0.5% |
+| Our DPO, English | 21.7% | 0.1-0.3% (English, Hindi, Swahili) | 0.5% |
+| Our DPO, + low-resource | 14.4% | 0.1-1.5% (all five) | 2.0% |
+
+Every defense lowers attack success, but from a floor of 2-4%, so the benchmark cannot separate them or the languages.
+The undefended model's Chinese and Tamil runs cover 906 and 845 of the 949 cases; Chinese and Tamil for Meta-SecAlign and our English-only defense finish after this version.
 
 ### Sample outputs
 
