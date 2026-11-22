@@ -115,11 +115,17 @@ def defense_gap(acl: Path, out: Path, rule: str) -> None:
     save(fig, out, "defense_gap" if rule == "judged" else f"defense_gap_{rule}")
 
 
+# Languages Prompt Guard 2's model card says it was evaluated on, among our variants
+# (the card lists English, French, German, Hindi, Italian, Portuguese, Spanish and Thai).
+PROMPT_GUARD_CARD = {"english", "french", "hindi", "spanglish"}
+
+
 def promptguard_languages(acl: Path, out: Path) -> None:
     """Share of each language's attacks that Prompt Guard 2 removes, one try per language.
 
-    Blank where the undefended model follows that language's injections less than half as often
-    as English ones: there is too little attack success left to measure a removal.
+    † marks languages on Prompt Guard 2's model card. Blank where the undefended model follows
+    that language's injections less than half as often as English ones: there is too little
+    attack success left to measure a removal.
     """
     removed = {
         (r["model"], r["language"]): 100 * float(r["relative_reduction"])
@@ -145,7 +151,8 @@ def promptguard_languages(acl: Path, out: Path) -> None:
             fontsize=8.5,
             color="white" if value > 60 else colour,
         )
-    ax.set_xticks(range(len(LANGUAGES)), [name for _, name in LANGUAGES], fontsize=8)
+    labels = [name + ("†" if lang in PROMPT_GUARD_CARD else "") for lang, name in LANGUAGES]
+    ax.set_xticks(range(len(LANGUAGES)), labels, fontsize=8)
     ax.set_yticks(range(len(MODELS)), [title for _, title in MODELS])
     ax.tick_params(length=0)
     for side in ax.spines.values():

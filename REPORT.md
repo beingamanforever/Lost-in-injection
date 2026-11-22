@@ -266,7 +266,7 @@ The same holds beyond Tiny Aya Global.
 With one try per language, the worst single language is within a few points of English, or below it, for every trained defense (Table 2).
 That includes Meta's own Meta-SecAlign-8B and -70B, and Tiny Aya Fire, Earth and Water, whose transfer gaps are +0.4, -2.8 and -1.8 points.
 Qwen3's defense is weaker overall, 64% of English cases under the judge, but weakest in English.
-The defense appears to have learned "text in the input role is data", not "ignore English instructions".
+The defense appears to have learned "text in the input role is data", not "ignore English instructions": the ablation that removes the input role, putting the data in the user's turn, leaves 30.8% of cases open to language search against 21.3% with it (Section 7.5).
 
 *Table 2. Cases hijacked (%), one try per language, LLM judge.*
 
@@ -288,13 +288,26 @@ Undefended Llama 3.1 8B follows only 0-27% of non-English injections under the s
 
 ![Figure 3](results/figures/promptguard_languages.png)
 
-*Figure 3. Share of each language's attacks that Prompt Guard 2 removes, against the same model undefended. "n/a" marks languages the undefended model follows less than half as often as English, which leaves too little to remove.*
+*Figure 3. Share of each language's attacks that Prompt Guard 2 removes, against the same model undefended. † marks the languages on Prompt Guard 2's model card. "n/a" marks languages the undefended model follows less than half as often as English, which leaves too little to remove.*
 
 Prompt Guard 2 is a separate 86M-parameter classifier that reads the data and blanks it if it looks like an injection.
 It removes 33-71% of English attacks, depending on the model behind it, but only 6-35% of Swahili ones and 7-12% of romanized-Hindi ones (Figure 3).
 Code-mixes that keep English words are caught best: 86-92% of Spanglish.
 Because the filter sits in front of the model, the blind spot follows it: on Tiny Aya, one Swahili attempt gets through in 83% of cases, more than twice the English rate of 39%, and Swahili is the worst language behind the filter on Llama 3.3 70B too (Table 2).
 It is the only defense we tested whose worst single language is far above English.
+
+The likely reason is coverage.
+Prompt Guard 2's model card says it was evaluated for attack detection in English, French, German, Hindi, Italian, Portuguese, Spanish and Thai.
+Among our variants, those are English, French, Hindi and Spanglish, and the filter removes far more attacks in them than in the rest:
+
+| Model behind Prompt Guard 2 | Removed, languages on its card | Removed, other languages |
+|---|---|---|
+| Tiny Aya | 57% | 18% |
+| Qwen3 | 50% | 34% |
+| Llama 3.3 70B | 63% | 37% |
+
+Hindi is the weakest of the listed languages (18-48% removed), and the same words typed in Latin letters, which no card lists, fall to 7-12%.
+Meta's runner passes the whole data text to the classifier, and AlpacaFarm's data is short, so truncation at the filter's 512-token window plays no part.
 
 Prompting defenses barely help in any language: told to ignore commands in the data, Tiny Aya still obeys 85% of English injections, and the sandwich and isolation prompts still let 22-99% of English attacks through, depending on the model.
 
@@ -318,6 +331,9 @@ At the same budget of 11 tries, English paraphrases written by an LLM hijack as 
 Character-level noise (Best-of-N) is far weaker (8.2%), and so are back-translated rewordings, which stay close to the original: English plus 7 back-translations hijack 12.0% of cases, against 23.1% for English plus 7 translations.
 After low-resource training the picture flips: translations fall to 15.9% but paraphrases rise to 33.2%, beating translations by 17.3 points (12.0 to 23.1).
 Low-resource training closes the language route, and what remains is any varied rewording.
+Two things set how fast each curve rises: how often one try works, and how different the cases are that different tries break.
+Against the English-only defense, one paraphrase hijacks 9.0% of cases and one translation 5.9%, but translations break more varied cases (their successes correlate 0.37 across cases, against 0.53 for paraphrases), so by 11 tries they catch up; character noise breaks varied cases (0.16) but rarely (1.4% per try).
+After low-resource training one translation works on 4.4% of cases and their successes correlate as much as paraphrases' (0.53), while one paraphrase now works on 12.2%.
 
 An adaptive attacker that rewrites each surviving case for ten more rounds, in any language, adds only 2.9 points: from 23.1% to 26.0% against the English-only defense, and from 15.9% to 18.8% against the low-resource one (one seed each).
 Within this budget, trying languages finds most of what the adaptive attacker finds, at a fifth of the queries.
@@ -368,7 +384,7 @@ Knowledge barely moves: every defense stays within 2.2 points of its undefended 
 On Tiny Aya, instruction following holds too: paired over 6,441 prompts from IFEval, IndicIFEval and Marco-Bench-MIF in 12 languages, English-only training changes it by -0.7 points (95% CI -1.6 to 0.2) and low-resource training by +1.5 (0.7 to 2.4).
 On Llama 3.1 8B our recipe, tuned on Tiny Aya, costs 8.3 IFEval points with English-only data and 14.4 with low-resource data, where Meta-SecAlign-8B costs 0.9.
 Meta-SecAlign-70B keeps English instruction following (-1.9) but loses 8.0 points in Hindi.
-On Qwen3 our English-only defense costs 3.0 IFEval points and 6.9 in Hindi, and the low-resource one 1.3 and 3.7: training on Hindi injections halves the loss in Hindi.
+On Qwen3 our English-only defense costs 3.0 IFEval points and 6.9 in Hindi, and the low-resource one 1.3 and 3.7: training on Hindi injections halves the loss in Hindi. Qwen3 trains without the over-optimization described next for Llama (the preferred answer's implicit reward ends at +5.0 and +5.3, not below zero), and it still answers about 90% of Hindi prompts in Hindi, so its smaller losses come from formatting instructions rather than language.
 
 **Why our recipe costs Llama 3.1 8B instruction following.**
 We checked each explanation in turn.
