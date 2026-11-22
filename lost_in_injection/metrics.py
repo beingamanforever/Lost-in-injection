@@ -41,9 +41,10 @@ from lost_in_injection.runs import (
     FAMILY,
     FAMILY_RUNS,
     FOCUS,
-    META_SECALIGN_RUN,
+    META_SECALIGN_RUNS,
     OTHER_FAMILIES,
     RUNS,
+    prompt_defense,
     split,
 )
 from lost_in_injection.secalign import ALPACA_ATTACKS, INJECAGENT_DEFENSE
@@ -84,7 +85,7 @@ ABLATIONS = [m for m in RUNS if m not in MODELS]
 FAMILY_MODELS = [f"{f}-{r}" for f in FAMILY for r in ("base", *FAMILY_RUNS)]
 OTHER_FAMILY_MODELS = [
     *(f"{f}-{r}" for f in OTHER_FAMILIES for r in ("base", *FAMILY_RUNS)),
-    META_SECALIGN_RUN,
+    *META_SECALIGN_RUNS,
 ]
 SEED_MEAN_MODELS = ("english-only", "english-plus-low-resource")
 SEED_MEAN_NAMES = [(v, [v]) for v in ALL_LANGUAGES] + [
@@ -232,7 +233,7 @@ def variant_rows(
 def model_rows(model: str, eval_dir: Path, rng: np.random.Generator) -> tuple[list[dict], dict]:
     """Rows for one model, and per success rule and variant, which cases any attack hijacked."""
     rows, combined, prompts = [], {OFFICIAL: {}, MARKDOWN_TOLERANT: {}}, {}
-    defense = "reminder" if model == "prompted" else "none"
+    defense = prompt_defense(model)
     for variant in EVALUATED:
         variant_dir = eval_dir / variant
         if not variant_dir.exists():
@@ -361,7 +362,7 @@ def extra_held_out_rows(
 ) -> list[dict]:
     """The 7 extra-held-out variants for a seed-0 MODELS entry, and the two wider aggregates."""
     rows = []
-    defense = "reminder" if model == "prompted" else "none"
+    defense = prompt_defense(model)
     for variant in EXTRA_HELD_OUT:
         variant_dir = eval_dir / variant
         if not variant_dir.exists():
@@ -424,7 +425,7 @@ def full_model_rows(
     """model_rows's phase-2 counterpart: every evaluated variant (up to all 19), every ASR
     aggregate, and the raw utility arrays (for seed-mean rows)."""
     rows, combined, prompts = [], {OFFICIAL: {}, MARKDOWN_TOLERANT: {}}, {}
-    defense = "reminder" if split(model)[1] == "prompted" else "none"
+    defense = prompt_defense(model)
     input_role = split(model)[1] != "no-input-role"
     for variant in ALL_LANGUAGES:
         variant_dir = eval_dir / variant
@@ -733,7 +734,7 @@ def paraphrase_rows(run_dirs: list[tuple[str, str, Path]]) -> list[dict]:
         if not all((eval_dir / v).exists() for v in sides["english-rewording"]):
             continue
         rng = model_rng("paraphrase", model, seed)
-        defense = "reminder" if split(model)[1] == "prompted" else "none"
+        defense = prompt_defense(model)
         input_role = split(model)[1] != "no-input-role"
         success = {
             v: alpacafarm(eval_dir / v, defense, input_role)[0]

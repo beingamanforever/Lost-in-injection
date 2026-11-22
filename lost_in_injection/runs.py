@@ -18,17 +18,19 @@ NUM_PAIRS = 5000
 MULTILINGUAL_SLOTS = 2500
 LOW_RESOURCE = ("hindi", "swahili", "romanized-hindi", "hinglish")
 FAMILY = ("fire", "earth", "water")
-OTHER_FAMILIES = ("llama8b", "llama3b", "qwen")
+# llama70b is only evaluated, undefended and as Meta-SecAlign-70B: training needs more than an A10G.
+OTHER_FAMILIES = ("llama8b", "llama3b", "qwen", "llama70b")
 FAMILY_RUNS = ("english-only", "english-plus-low-resource")
 BASE_MODELS = {
     "global": "CohereLabs/tiny-aya-global",
     **{model: f"CohereLabs/tiny-aya-{model}" for model in FAMILY},
     "llama8b": "meta-llama/Llama-3.1-8B-Instruct",
+    "llama70b": "meta-llama/Llama-3.3-70B-Instruct",
     "llama3b": "meta-llama/Llama-3.2-3B-Instruct",
     "qwen": "Qwen/Qwen3-4B-Instruct-2507",
 }
-# Meta's own English-only defense of Llama 3.1 8B, evaluated as one more Llama run.
-META_SECALIGN_RUN = "llama8b-meta-secalign"
+# Meta's own English-only defenses of Llama 3.1 8B and 3.3 70B, evaluated as more Llama runs.
+META_SECALIGN_RUNS = ("llama8b-meta-secalign", "llama70b-meta-secalign")
 # Regions each model's training focused on (Tiny Aya report, Sec. 2.3.3): Fire is South Asia only;
 # Earth and Water add Africa or Asia-Pacific to Europe and West Asia; Global covers them all.
 FOCUS = {
@@ -47,7 +49,11 @@ RUNS = {
     "hindi-only-mix": (("hindi",), MULTILINGUAL_SLOTS),
     "native-scripts-only": (("hindi", "swahili"), MULTILINGUAL_SLOTS),
     "no-input-role": ((), 0),  # english-only with the untrusted data inside the user turn
+    # english-plus-low-resource, but each multilingual slot also keeps its English pair.
+    "english-plus-low-resource-added": (LOW_RESOURCE, MULTILINGUAL_SLOTS),
 }
+# Runs that add their non-English pairs to the English ones instead of replacing them.
+ADDED_RUNS = {"english-plus-low-resource-added"}
 # Romanized Hindi is rewritten from Hindi, so Hindi comes first.
 TRAINING_LANGUAGES = ("french", "chinese", "hindi", "swahili", "romanized-hindi", "hinglish")
 
@@ -58,6 +64,20 @@ def split(name: str) -> tuple[str, str]:
         if name.startswith(f"{model}-"):
             return model, name.removeprefix(f"{model}-")
     return "global", name
+
+
+# Prompting defenses and the Prompt Guard 2 detector, by Meta-SecAlign runner name; every other run
+# uses "none". Prompt Guard blanks the data it flags at score 0.5 (Meta_SecAlign utils.py:240-246).
+PROMPT_DEFENSES = {
+    "prompted": "reminder",
+    "sandwich": "sandwich",
+    "isolation": "isolation",
+    "promptguard": "promptguard0.5",
+}
+
+
+def prompt_defense(run: str) -> str:
+    return PROMPT_DEFENSES.get(split(run)[1], "none")
 
 
 def model_path(model: str) -> Path:

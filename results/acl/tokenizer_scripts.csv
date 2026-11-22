@@ -1,0 +1,13 @@
+script,Tiny Aya,Qwen3,Llama 3.x
+vocabulary size,261008,151669,128256
+Latin,153975,94626,97277
+Devanagari (Hindi),8268,56,905
+Arabic (Urdu),15447,3979,3714
+Tamil,2905,25,0
+Ethiopic (Amharic),677,112,0
+Bengali,3795,39,2
+Thai,4315,2550,1346
+Han (Chinese),18859,26060,4424
+Hangul (Korean),11305,3589,2294
+Greek,4625,232,1392
+Cyrillic (Russian),13090,4149,6517

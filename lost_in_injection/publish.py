@@ -24,7 +24,13 @@ from pathlib import Path
 
 from huggingface_hub import CommitOperationAdd, HfApi
 
-from lost_in_injection.runs import BASE_MODELS, META_SECALIGN_RUN, OTHER_FAMILIES, model_path, split
+from lost_in_injection.runs import (
+    BASE_MODELS,
+    META_SECALIGN_RUNS,
+    OTHER_FAMILIES,
+    model_path,
+    split,
+)
 
 OUTPUTS_REPO = "lost-in-injection-model-outputs"
 ADAPTER_REPOS = {  # Seed 0 of the published runs; ablations and other seeds get derived names.
@@ -81,7 +87,7 @@ def main() -> None:
     api = HfApi()
     user = api.whoami()["name"]
     adapter = args.run_dir / "adapter"
-    if adapter.is_dir() and model != META_SECALIGN_RUN:
+    if adapter.is_dir() and model not in META_SECALIGN_RUNS:
         files = sorted(path for path in adapter.iterdir() if path.is_file())
         name = adapter_repo(model)
         name += "" if seed == "0" else f"-seed{seed}"
