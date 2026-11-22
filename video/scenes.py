@@ -113,7 +113,7 @@ LANGUAGES = {  # The eleven attack languages, each in a font that has its script
 HOLD = {
     "hook": 0.4,
     "question": 0.4,
-    "scale": 0.8,
+    "scale": 1.2,
     "inside": 1.0,
     "filter": 0.8,
     "tries": 1.2,
@@ -189,6 +189,12 @@ def tag(code: str, size: float = 26, font: str = SANS) -> VGroup:
         stroke_width=3,
     )
     return VGroup(box, label.move_to(box))
+
+
+def footnote(*lines: str) -> VGroup:
+    """Small gray notes in the bottom-left corner of the frame."""
+    notes = VGroup(*[text(s, 20, GRAY) for s in lines]).arrange(DOWN, aligned_edge=LEFT, buff=0.08)
+    return notes.to_edge(DOWN, buff=0.3).to_edge(LEFT, buff=0.6)
 
 
 def card(
@@ -443,35 +449,67 @@ class LostInInjection(MovingCameraScene):
             t.scale(0.2).move_to(globe).set_opacity(0)
         self.play(LaggedStart(*[Restore(t) for t in tags], lag_ratio=0.12), run_time=1.6)
 
-    # 3. Four model families and eight defenses -------------------------------------------------
+    # 3. Four model families, the languages each one claims, and eight defenses -------------
     def scale(self):
-        models = VGroup()
-        for name, size, height in (
-            ("Tiny Aya", "3B", 0.8),
-            ("Qwen3", "4B", 0.95),
-            ("Llama 3.1", "8B", 1.3),
-            ("Llama 3.3", "70B", 2.3),
-        ):
+        codes = ["EN", "FR", "ZH", "HI", "SW", "UR", "TA", "AM"]
+        # Languages each model card lists as supported (Qwen3: its release notes).
+        families = (
+            ("Tiny Aya", "3B", 0.8, set(codes)),
+            ("Qwen3", "4B", 0.95, set(codes) - {"AM"}),
+            ("Llama 3.1", "8B", 1.3, {"EN", "FR", "HI"}),
+            ("Llama 3.3", "70B", 2.3, {"EN", "FR", "HI"}),
+        )
+
+        def language(code: str, supported: bool) -> VGroup:
+            """A mini tag: filled when the model claims the language, hollow when it does not."""
+            box = RoundedRectangle(
+                corner_radius=0.06,
+                width=0.35,
+                height=0.28,
+                fill_color=TAG if supported else "#ffffff",
+                fill_opacity=1,
+                stroke_color=TAG if supported else GRAY,
+                stroke_width=1.5,
+            )
+            label = text(code, 14, "#ffffff" if supported else GRAY, weight="BOLD")
+            return VGroup(box, label.move_to(box))
+
+        models, coverage = VGroup(), VGroup()
+        for name, size, height, supported in families:
             label = VGroup(text(size, 32, INK, weight="BOLD"), text(name, 24, GRAY)).arrange(
                 DOWN, buff=0.08
             )
-            models.add(VGroup(icon("model", INK, height), label).arrange(DOWN, buff=0.22))
-        models.arrange(RIGHT, buff=1.1, aligned_edge=DOWN).move_to(0.9 * UP)
-        shields = (
-            VGroup(*[icon("shield", c, 0.8) for c in DEFENSES])
-            .arrange(RIGHT, buff=0.5)
-            .to_edge(DOWN, buff=0.85)
+            row = VGroup(*[language(c, c in supported) for c in codes]).arrange(RIGHT, buff=0.03)
+            models.add(VGroup(icon("model", INK, height), label, row).arrange(DOWN, buff=0.22))
+            coverage.add(row)
+        note = footnote(
+            "* filled: listed in the model card (Qwen3: its release notes).",
+            "Romanized Hindi, Hinglish and Spanglish are scripts and mixes, listed by none.",
         )
+        shields = (
+            VGroup(*[icon("shield", c, 0.7) for c in DEFENSES])
+            .arrange(RIGHT, buff=0.5)
+            .next_to(note, UP, buff=0.35)
+            .set_x(0)
+        )
+        models.arrange(RIGHT, buff=0.35, aligned_edge=DOWN).next_to(shields, UP, buff=0.5).set_x(0)
+        only = SurroundingRectangle(coverage[0], buff=0.08, corner_radius=0.08, color=INK)
 
         self.play(
             FadeIn(heading("The setup")),
-            LaggedStart(*[FadeIn(m, scale=0.3) for m in models], lag_ratio=0.45),
+            LaggedStart(*[FadeIn(m[:2], scale=0.3) for m in models], lag_ratio=0.45),
             run_time=2.8,
         )
-        self.wait(0.9)
+        self.wait(0.7)
         self.play(
             LaggedStart(*[FadeIn(s, shift=0.3 * UP) for s in shields], lag_ratio=0.18), run_time=1.3
         )
+        self.wait(0.3)
+        self.play(
+            LaggedStart(*[FadeIn(t, scale=0.5) for row in coverage for t in row], lag_ratio=0.1),
+            run_time=1.8,
+        )
+        self.play(Create(only), FadeIn(note), run_time=0.6)
 
     # 4. Trained-in defenses hold, one language at a time ---------------------------------------
     def inside(self):
@@ -484,8 +522,12 @@ class LostInInjection(MovingCameraScene):
         )
         unseen = (
             text("even languages never seen in training", 28, GRAY, slant="ITALIC")
-            .to_edge(DOWN, buff=0.7)
+            .to_edge(DOWN, buff=1.0)
             .shift(2.6 * LEFT)
+        )
+        note = footnote(
+            "* Llama 3.1 8B rarely obeys non-English injections even undefended,"
+            " so its language gaps say little."
         )
         names = ["English", "Français", "हिन्दी", "Kiswahili", "中文", "اردو", "தமிழ்", "አማርኛ"]
         lanes = [0.9, -0.4, 0.4, -0.8, 1.2, -0.1, 0.7, -0.6]
@@ -521,6 +563,7 @@ class LostInInjection(MovingCameraScene):
             FadeIn(heading("Inside the model")),
             FadeIn(fortress, scale=0.8),
             FadeIn(caption),
+            FadeIn(note),
             run_time=0.6,
         )
         self.play(
@@ -841,7 +884,8 @@ class LostInInjection(MovingCameraScene):
     # 8. Low-resource training narrows the gap in every family ------------------------------
     def lowres(self):
         # Share of cases hijacked when the attacker tries all 11 languages (LLM judge):
-        # English-only defense, then English plus Hindi and Swahili injections.
+        # English-only defense, then English plus Hindi, Swahili, romanized Hindi and Hinglish
+        # injections.
         families = [
             ("Tiny Aya Global", 59.8, 51.0),
             ("Tiny Aya Fire", 37.0, 33.7),
@@ -853,7 +897,7 @@ class LostInInjection(MovingCameraScene):
         unit, left = 8.6 / 80, -2.6
         names, bars, ghosts, targets = VGroup(), VGroup(), VGroup(), VGroup()
         for i, (name, before, after) in enumerate(families):
-            y = 1.75 - 0.72 * i
+            y = 1.3 - 0.72 * i
             names.add(text(name, 28).move_to([left - 0.3, y, 0], aligned_edge=RIGHT))
             bar = Rectangle(
                 width=before * unit,
@@ -884,12 +928,12 @@ class LostInInjection(MovingCameraScene):
                     ).arrange(RIGHT, buff=0.15)
                     for c, s in (
                         (ENGLISH_ONLY, "English-only defense"),
-                        (LOW_RESOURCE, "+ Hindi and Swahili injections"),
+                        (LOW_RESOURCE, "+ Hindi, Swahili, romanized Hindi, Hinglish"),
                     )
                 ]
             )
-            .arrange(RIGHT, buff=0.6)
-            .to_edge(UP, buff=0.5)
+            .arrange(DOWN, aligned_edge=LEFT, buff=0.15)
+            .to_edge(UP, buff=0.4)
             .to_edge(RIGHT, buff=0.6)
         )
         caption = (
@@ -906,8 +950,17 @@ class LostInInjection(MovingCameraScene):
             LaggedStart(*[GrowFromEdge(b, LEFT) for b in bars], lag_ratio=0.1),
             run_time=0.9,
         )
+        added = VGroup(
+            *[tag(n, 24, LANGUAGES[n]) for n in ("हिन्दी", "Kiswahili", "Hindi (Latin)", "Hinglish")]
+        ).arrange(RIGHT, buff=0.25)
+        joining = text("added to training:", 24, GRAY)
+        VGroup(joining, added).arrange(RIGHT, buff=0.3).move_to([0, 2.2, 0]).align_to(names, LEFT)
         self.add(ghosts)
-        self.wait(0.4)
+        self.play(
+            FadeIn(joining),
+            LaggedStart(*[FadeIn(t, shift=0.3 * DOWN) for t in added], lag_ratio=0.3),
+            run_time=1.0,
+        )
         self.play(FadeIn(legend[1], shift=0.1 * LEFT), run_time=0.3)
         self.play(
             LaggedStart(

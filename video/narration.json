@@ -9,7 +9,7 @@
   },
   {
     "id": "scale",
-    "text": "Four model families, from three to seventy billion parameters, and eight defenses."
+    "text": "Four model families, from three to seventy billion parameters, and eight defenses. Only Tiny Aya officially covers every language we test."
   },
   {
     "id": "inside",
@@ -29,7 +29,7 @@
   },
   {
     "id": "lowres",
-    "text": "Training on Hindi and Swahili injections narrows the gap in every model family we trained."
+    "text": "Adding low-resource injections to training narrows the gap in every model family we trained."
   },
   {
     "id": "close",
