@@ -273,9 +273,9 @@ The defense appears to have learned "text in the input role is data", not "ignor
 
 | Model, defense | English | Mean of the other 10 | Worst single language |
 |---|---|---|---|
-| Tiny Aya 3B, our DPO (English) | 32.7 | 19.9 | 27.4 (Amharic) |
-| Qwen3 4B, our DPO (English) | 63.9 | 32.8 | 51.9 (Spanglish) |
-| Llama 3.1 8B, our DPO (English) | 4.8 | 5.0 | 7.2 (Hinglish) |
+| Tiny Aya 3B, ours (English-only) | 32.7 | 19.9 | 27.4 (Amharic) |
+| Qwen3 4B, ours (English-only) | 63.9 | 32.8 | 51.9 (Spanglish) |
+| Llama 3.1 8B, ours (English-only) | 4.8 | 5.0 | 7.2 (Hinglish) |
 | Llama 3.1 8B, Meta-SecAlign | 2.4 | 2.4 | 4.8 (Spanglish) |
 | Llama 3.3 70B, Meta-SecAlign | 1.9 | 2.0 | 3.8 (Amharic) |
 | Tiny Aya 3B, Prompt Guard 2 | 52.4 | 62.9 | **91.3 (Swahili)** |
@@ -321,7 +321,7 @@ Prompting defenses barely help in any language: told to ignore commands in the d
 Per-language rates hide where the defenses fail.
 Against the English-only Tiny Aya defense a randomly chosen variant hijacks 5.1% of cases, but different variants break different cases, so the rate climbs with every extra language (Figure 4).
 With all 11 it reaches 21.3% (95% CI 15.9-26.9; seeds 20.2, 23.1 and 20.7), against 97.1% undefended, and 25.0% with the seven extra languages.
-The same gap appears for every trained defense and the filter in Figure 1: 7-11 points for Meta-SecAlign, 11-26 points for our DPO defenses and 23-45 points behind Prompt Guard, under the judge.
+The same gap appears for every trained defense and the filter in Figure 1: 7-11 points for Meta-SecAlign, 11-26 points for ours and 23-45 points behind Prompt Guard, under the judge.
 
 ![Figure 5](results/figures/equal_budget.png)
 
@@ -385,7 +385,8 @@ Knowledge barely moves: every defense stays within 2.2 points of its undefended 
 On Tiny Aya, instruction following holds too: paired over 6,441 prompts from IFEval, IndicIFEval and Marco-Bench-MIF in 12 languages, English-only training changes it by -0.7 points (95% CI -1.6 to 0.2) and low-resource training by +1.5 (0.7 to 2.4).
 On Llama 3.1 8B our recipe, tuned on Tiny Aya, costs 8.3 IFEval points with English-only data and 14.4 with low-resource data, where Meta-SecAlign-8B costs 0.9.
 Meta-SecAlign-70B keeps English instruction following (-1.9) but loses 8.0 points in Hindi.
-On Qwen3 our English-only defense costs 3.0 IFEval points and 6.9 in Hindi, and the low-resource one 1.3 and 3.7: training on Hindi injections halves the loss in Hindi. Qwen3 trains without the over-optimization described next for Llama (the preferred answer's implicit reward ends at +5.0 and +5.3, not below zero), and it still answers about 90% of Hindi prompts in Hindi, so its smaller losses come from formatting instructions rather than language.
+On Qwen3 our English-only defense costs 3.0 IFEval points and 6.9 in Hindi, and the low-resource one 1.3 and 3.7: training on Hindi injections halves the loss in Hindi.
+Pooled over all 6,441 IFEval, IndicIFEval and Marco-Bench-MIF prompts in 12 languages, the English-only defense costs Qwen3 4.2 points (95% CI 3.3 to 5.0) and the low-resource one 2.3 (1.5 to 3.2). Qwen3 trains without the over-optimization described next for Llama (the preferred answer's implicit reward ends at +5.0 and +5.3, not below zero), and it still answers about 90% of Hindi prompts in Hindi, so its smaller losses come from formatting instructions rather than language.
 
 **Why our recipe costs Llama 3.1 8B instruction following.**
 We checked each explanation in turn.
@@ -393,7 +394,7 @@ We checked each explanation in turn.
 *Not the adapter shape or optimizer settings.* Our adapter matches Meta-SecAlign-8B's (rank 64, alpha 8, dropout 0.1, the same five projections), and so do the learning rate (1.6e-4), epochs (3) and DPO beta (0.1).
 *Where the losses are.* The drop sits in three IFEval instruction types, while answers are not truncated or looping:
 
-| IFEval instruction accuracy (%) | Undefended | Our DPO, English | Our DPO, + low-resource | Meta-SecAlign-8B |
+| IFEval instruction accuracy (%) | Undefended | Ours, English-only | Ours, + low-resource | Meta-SecAlign-8B |
 |---|---|---|---|---|
 | Start or end with an exact phrase, or quote the whole reply | 94 | 64 | 54 | 88 |
 | Punctuation ("use no commas") | 89 | 77 | 58 | 89 |
@@ -438,17 +439,17 @@ AgentDojo, with its injection template translated into Hindi, Swahili, Chinese a
 Our low-resource defense finishes at 0.1-1.5% per language.
 Amharic was dropped there because one sentence of its template missed the back-translation gate (0.78 against 0.80).
 
-*Table 3. AgentDojo on Llama 3.1 8B (949 attack cases per language).*
+*Table 3. AgentDojo on Llama 3.1 8B: 949 attack cases in each of English, Hindi, Swahili, Chinese and Tamil.*
 
-| Defense | Tasks solved without an attack | Attack success per language | Any of the languages |
+| Defense | Tasks solved without an attack | Attack success per language | Any of the five languages |
 |---|---|---|---|
-| Undefended | 16.5% | 0.7-1.9% (English, Hindi, Swahili, Chinese, Tamil) | 3.7% |
-| Meta-SecAlign-8B | 21.7% | 0.1-0.2% (English, Hindi, Swahili) | 0.5% |
-| Our DPO, English | 21.7% | 0.1-0.3% (English, Hindi, Swahili) | 0.5% |
-| Our DPO, + low-resource | 14.4% | 0.1-1.5% (all five) | 2.0% |
+| No defense | 16.5% | 0.6-1.9% | 3.4% |
+| Meta-SecAlign-8B | 21.7% | 0.1-0.2% | 0.6% |
+| Ours, English-only | 21.7% | 0.1-0.3% | 0.5% |
+| Ours, + low-resource | 14.4% | 0.1-1.5% | 2.0% |
 
 Every defense lowers attack success, but from a floor of 2-4%, so the benchmark cannot separate them or the languages.
-The undefended model's Chinese and Tamil runs cover 906 and 845 of the 949 cases; Chinese and Tamil for Meta-SecAlign and our English-only defense finish after this version.
+Every run covers all 949 cases in all five languages, except our English-only defense in Tamil (938): AgentDojo's own scorer crashed on two Slack tasks (`KeyError: 'Alice'`, after the model's tool calls changed the simulated users), so those cases have no result.
 
 ### Sample outputs
 
@@ -593,6 +594,7 @@ The idea, the literature review, the experimental design, stitching the pieces i
 
 - v1 (Nov 15): Tiny Aya Global, three training mixes, one seed.
 - v2 (Nov 22): three seeds and four ablations; Tiny Aya Fire, Earth and Water, Qwen3-4B, Llama 3.1 8B and Llama 3.3 70B; prompting defenses, Prompt Guard 2 and Meta-SecAlign; seven extra languages; equal-budget controls and an adaptive attacker; the LLM judge; instruction following, math, serving speed and tokenizers; AgentDojo; native-speaker review. The headline changed: per-language transfer holds, but the filter, extra tries and the scoring rule leak.
+- v2.1 (Nov 23): AgentDojo complete in all five languages for every defense; Qwen3 on Marco-Bench-MIF; figures label our defenses "Ours, English-only" and "Ours, + low-resource", and romanized Hindi by name.
 
 ## Appendix
 
