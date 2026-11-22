@@ -23,7 +23,6 @@ EXTRA_HELD_OUT = {
     "greek": ("nllb", "ell_Grek"),
     "korean": ("nllb", "kor_Hang"),
     "thai": ("nllb", "tha_Thai"),
-    "yoruba": ("nllb", "yor_Latn"),
     "bengali": ("indictrans2", "ben_Beng"),
 }
 

@@ -20,7 +20,7 @@ from transformers import AutoTokenizer
 
 from lost_in_injection.languages import BY_NAME
 from lost_in_injection.records import read_jsonl, write_jsonl
-from lost_in_injection.runs import RUNS, base_model, language
+from lost_in_injection.runs import ADDED_RUNS, RUNS, base_model, language, split
 
 MAX_TOKENS = 2048  # Pairs longer than this are dropped, not truncated.
 
@@ -31,27 +31,28 @@ def end_of_reply(tokenizer) -> str:
     return tokenizer.apply_chat_template(turn, tokenize=False).split(marker)[1]
 
 
-def prompt(tokenizer, pair: dict, run: str) -> str:
-    instruction, data = pair["clean"]["instruction"], pair["data"][language(run, pair["slot"])]
+def prompt(tokenizer, pair: dict, run: str, lang: str) -> str:
+    instruction, data = pair["clean"]["instruction"], pair["data"][lang]
     if run == "no-input-role":
         messages = [{"role": "user", "content": f"{instruction}\n\n{data}"}]
     else:
         messages = [{"role": "user", "content": instruction}, {"role": "input", "content": data}]
     text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
-    return text.removeprefix(tokenizer.bos_token)
+    return text.removeprefix(tokenizer.bos_token or "")  # Qwen has no BOS
 
 
-def row(tokenizer, pair: dict, run: str, end: str) -> dict:
-    rejected = pair["rejected"][language(run, pair["slot"])]["text"]
+def row(tokenizer, pair: dict, run: str, end: str, lang: str) -> dict:
+    rejected = pair["rejected"][lang]["text"]
     return {
-        "prompt": prompt(tokenizer, pair, run),
+        "prompt": prompt(tokenizer, pair, run, lang),
         "chosen": pair["chosen"]["text"] + end,
         "rejected": rejected + end,
     }
 
 
 def num_tokens(tokenizer, text: str) -> int:
-    return len(tokenizer(text, add_special_tokens=False)["input_ids"]) + 1  # TRL's BOS
+    bos = tokenizer.bos_token is not None  # TRL adds the BOS, if the model has one
+    return len(tokenizer(text, add_special_tokens=False)["input_ids"]) + bos
 
 
 def usable(tokenizer, pair: dict, end: str) -> bool:
@@ -59,7 +60,7 @@ def usable(tokenizer, pair: dict, end: str) -> bool:
     if any(label["finish_reason"] == "length" for label in labels):
         return False
     for run in RUNS:
-        r = row(tokenizer, pair, run, end)
+        r = row(tokenizer, pair, run, end, language(run, pair["slot"]))
         if (
             max(num_tokens(tokenizer, r["prompt"] + r[k]) for k in ("chosen", "rejected"))
             > MAX_TOKENS
@@ -98,10 +99,13 @@ def main() -> None:
     kept = [pair for pair in pairs if usable(tokenizer, pair, end)]
     print(f"kept {len(kept)} of {len(pairs)} pairs")
     for run in args.runs:
-        export([row(tokenizer, pair, run, end) for pair in kept], args.out / run)
+        items = [(pair, language(run, pair["slot"])) for pair in kept]
+        # The English pair of every multilingual slot stays in as well.
+        if split(run)[1] in ADDED_RUNS:
+            items += [(pair, "english") for pair, lang in items if lang != "english"]
+        export([row(tokenizer, pair, run, end, lang) for pair, lang in items], args.out / run)
         meta = []
-        for pair in kept:
-            lang = language(run, pair["slot"])
+        for pair, lang in items:
             meta.append(
                 {
                     "pair_id": pair["pair_id"],
@@ -116,7 +120,7 @@ def main() -> None:
                 }
             )
         write_jsonl(args.out / run / "pairs_meta.jsonl", meta)
-        print(f"{run}: {len(kept)} pairs")
+        print(f"{run}: {len(items)} pairs")
 
 
 if __name__ == "__main__":

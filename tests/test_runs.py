@@ -11,6 +11,7 @@ from lost_in_injection.runs import (
     TRAINING_LANGUAGES,
     base_model,
     language,
+    model_path,
     split,
 )
 
@@ -45,7 +46,18 @@ def test_every_run_language_is_translated():
 
 def test_family_run_names_split_into_model_and_run():
     assert split("fire-english-only") == ("fire", "english-only")
+    assert split("llama8b-meta-secalign") == ("llama8b", "meta-secalign")
+    assert split("llama3b-english-only") == ("llama3b", "english-only")
+    assert split("qwen-english-plus-low-resource") == ("qwen", "english-plus-low-resource")
     assert split("english-only") == ("global", "english-only")
+
+
+def test_model_folders_follow_their_hub_names():
+    assert model_path("global") == Path("models/tiny-aya-global")
+    assert model_path("llama8b") == Path("models/llama-3.1-8b-instruct")
+    assert model_path("llama3b") == Path("models/llama-3.2-3b-instruct")
+    assert model_path("qwen") == Path("models/qwen3-4b-instruct-2507")
+    assert base_model("llama8b-meta-secalign", "llama8b-english-only") == model_path("llama8b")
 
 
 def test_base_model_rejects_runs_from_two_models():

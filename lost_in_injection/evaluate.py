@@ -13,7 +13,9 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
-from vllm import LLM
+import torch
+from vllm import LLM, SamplingParams
+from vllm.lora.request import LoRARequest
 
 from lost_in_injection import secalign
 from lost_in_injection.languages import INJECAGENT_VARIANTS, VARIANTS
@@ -24,19 +26,62 @@ ALL_VARIANTS = [v.name for v in VARIANTS if v.group != "intermediate"]
 # Every model is evaluated on the second A10G (driver 535), where vLLM's sampler warm-up runs out
 # of memory at 0.85 and above; same value for every run.
 GPU_MEMORY_UTILIZATION = 0.80
+# Tiny Aya's context length. Llama (128k) and Qwen3 (256k) are capped to it: their full-length
+# KV cache does not fit an A10G, and every model gets the same prompt-plus-reply budget.
+MAX_MODEL_LEN = 8192
 
 
 class SharedGpuLLM(LLM):
-    """vLLM engine with a fixed memory share that sends text prompts with a single BOS."""
+    """vLLM engine with a fixed memory share and context, split over every visible GPU (70B
+    needs two), that sends text prompts with a single BOS (none for Qwen, which has no BOS)."""
 
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, gpu_memory_utilization=GPU_MEMORY_UTILIZATION, **kwargs)
-        self.bos_token = self.get_tokenizer().bos_token
+        super().__init__(
+            *args,
+            gpu_memory_utilization=GPU_MEMORY_UTILIZATION,
+            max_model_len=MAX_MODEL_LEN,
+            **{**kwargs, "tensor_parallel_size": torch.cuda.device_count()},
+        )
+        self.bos_token = self.get_tokenizer().bos_token or ""
 
     def generate(self, prompts, *args, **kwargs):
         # The chat template already starts with BOS, and vLLM adds another to text prompts.
         prompts = [prompt.removeprefix(self.bos_token) for prompt in prompts]
         return super().generate(prompts, *args, **kwargs)
+
+
+def small_gpu() -> bool:
+    """Capturing CUDA graphs with LoRA runs out of memory on a 24 GB A10G at 0.80, so small GPUs
+    run eager. Eager mode only skips graph capture; decoding is unchanged."""
+    return torch.cuda.get_device_properties(0).total_memory < 40 * 2**30
+
+
+class SharedGpuLoraLLM(SharedGpuLLM):
+    """The same engine with runtime LoRA (the runners enable it only for paths with '_')."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **{**kwargs, "enable_lora": True, "enforce_eager": small_gpu()})
+
+
+def runner_generate(adapter: Path | None, temperature: float = 0.0, seed: int | None = None):
+    """The runners' generation (Meta_SecAlign utils.py:355-365), with a LoRA adapter applied at
+    runtime and/or sampling instead of greedy decoding (the sampling control, ACL plan E2).
+
+    Merging a LoRA update into bf16 weights rounds most of it away: each weight moves by about
+    1e-5, below bf16's step of about 1e-4 at typical weight sizes. vLLM 0.11 serves LoRA on Qwen3
+    and Llama but not on Tiny Aya, so this is used for Qwen and Llama. `adapter` holds only
+    adapter_config.json and adapter_model.safetensors, since vLLM also loads a tokenizer from the
+    adapter folder.
+    """
+    request = LoRARequest("adapter", 1, str(adapter)) if adapter else None
+
+    def generate(llm_input, model, tokenizer, *_unused, **_unused_keywords):
+        params = SamplingParams(
+            temperature=temperature, seed=seed, max_tokens=8192, stop=tokenizer.eos_token
+        )
+        return [r.outputs[0].text for r in model.generate(llm_input, params, lora_request=request)]
+
+    return generate
 
 
 def link_all(sources, target_dir: Path) -> None:
@@ -62,17 +107,26 @@ def evaluate(
     alpaca_defense: str,
     input_role: bool,
     run_injecagent: bool = True,
+    adapter: Path | None = None,
+    temperature: float = 0.0,
+    sample_seed: int | None = None,
 ) -> None:
+    # absolute(), not resolve(): the runners only see these strings, and on Modal the volume's
+    # physical path contains a '_'.
     model_dir, eval_root, raw_dir, out_dir = (
-        p.resolve() for p in (model_dir, eval_root, raw_dir, out_dir)
+        p.absolute() for p in (model_dir, eval_root, raw_dir, out_dir)
     )
     check_no_underscore(model_dir)
     utils = secalign.load("utils")
-    utils.LLM = SharedGpuLLM
+    utils.LLM = SharedGpuLoraLLM if adapter else SharedGpuLLM
     alpaca = secalign.load("test")
     injecagent = secalign.load("test_injecagent")
     model, tokenizer = utils.load_vllm_model(str(model_dir))
     alpaca.load_vllm_model = lambda *_args, **_kwargs: (model, tokenizer)
+    if adapter or temperature:  # Both runners call test_model_output_vllm, in their own namespace.
+        alpaca.test_model_output_vllm = injecagent.test_model_output_vllm = runner_generate(
+            adapter.resolve() if adapter else None, temperature, sample_seed
+        )
 
     for variant in variants:
         work = out_dir / variant
@@ -125,6 +179,10 @@ def main() -> None:
     # InjecAgent always uses Meta-SecAlign's sandwich prompt, so a prompting-defense baseline is
     # identical to the base model there.
     parser.add_argument("--no-injecagent", action="store_false", dest="injecagent")
+    parser.add_argument("--adapter", type=Path, help="LoRA folder to apply at runtime to --model.")
+    # The sampling control only: every other run is greedy.
+    parser.add_argument("--temperature", type=float, default=0.0)
+    parser.add_argument("--sample-seed", type=int)
     args = parser.parse_args()
     evaluate(
         args.model,
@@ -135,6 +193,9 @@ def main() -> None:
         args.alpaca_defense,
         args.input_role,
         args.injecagent,
+        args.adapter,
+        args.temperature,
+        args.sample_seed,
     )
 
 
