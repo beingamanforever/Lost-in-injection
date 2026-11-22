@@ -146,8 +146,8 @@ TYPE_SCALE = (20, 24, 28, 36, 56, 72)  # every text size snaps to one of these
 SKILLS = {
     "IFEval": (76.0, 76.5, 77.6),
     "Global-MMLU-Lite": (55.4, 55.6, 56.0),
-    "MATH-500": (None, 16.8, None),
-    "MGSM": (None, None, None),
+    "MATH-500": (16.0, 16.8, 15.6),
+    "MGSM": (32.0, 32.7, 32.7),  # mean over MGSM's 11 languages
 }
 
 
@@ -179,13 +179,15 @@ def lockup() -> Group:
         ImageMobject(str(HERE / "icons" / "cohere-labs.png")),
         SVGMobject(str(HERE / "icons" / "hugging-face.svg")),
     )
-    names = ("Lexsi AI Safety & Alignment Hackathon", "Tiny Aya", "Hugging Face")
-    return Group(
+    names = ("Lexsi AI Safety & Alignment Hackathon", "Cohere Labs · Tiny Aya", "Hugging Face")
+    row = Group(
         *[
             Group(mark.set(height=0.55), text(name, 24, GRAY)).arrange(RIGHT, buff=0.22)
             for mark, name in zip(marks, names, strict=True)
         ]
     ).arrange(RIGHT, buff=0.9)
+    # Keep clear margins on both sides; shrinking never upscales the raster marks.
+    return row.scale_to_fit_width(min(row.width, 0.87 * config.frame_width))
 
 
 def title_block(with_link: bool) -> Group:
@@ -1177,7 +1179,7 @@ class LostInInjection(MovingCameraScene):
             .to_edge(RIGHT, buff=0.6)
         )
         note = footnote(
-            "Tiny Aya Global; defenses on training seed 1 for IFEval and MATH. Scores in %."
+            "Tiny Aya Global, defenses on seed 1. MGSM: mean of 11 languages. Scores in %."
         )
 
         def grow(bar_and_value):

@@ -156,7 +156,7 @@ Hindi, Urdu, romanized Hindi and Hinglish carry the same instruction in three sc
 The models do not all claim the same languages, and not every model got every test.
 Table 1 lists both, so each result can be read against what the model is meant to handle.
 
-*Table 1. Language support and test coverage per model.*
+*Table 1. Language support and test coverage per model. The starts-with rule and the LLM judge are defined in Section 5.*
 
 | | Tiny Aya Global, Fire, Earth, Water | Qwen3-4B | Llama 3.1 8B | Llama 3.3 70B |
 |---|---|---|---|---|
@@ -181,7 +181,8 @@ Native speakers rated the attack translations on our review site: Hinglish reads
 
 ### Splits and leak check
 
-Each run trains on 4,834 pairs: 2,500 multilingual slots whose injection passes the gates in all six training languages, and 2,334 English slots.
+Each Tiny Aya Global run trains on 4,834 pairs: 2,500 multilingual slots whose injection passes the gates in all six training languages, and 2,334 English slots.
+Every model writes its own answers, and the same length filters keep a different number of pairs per model: 4,813-4,819 for Tiny Aya Fire, Earth and Water, 4,696 for Llama 3.1 8B and 2,814 for Qwen3.
 No test instruction or test data matches a training instruction or training data, exactly or as a near duplicate (word 3-gram Jaccard 0.8 or more), and the test payload "Hacked" appears in 2 of 4,834 training pairs, both about computers being hacked (`lost_in_injection/leak_check.py`).
 
 ### Attack sets
@@ -235,7 +236,7 @@ Each pair puts an injection into the data of an Alpaca task, then prefers the mo
 | Pairs | 90% straightforward injections at a random position, 10% completion attacks; answers self-generated at temperature 0.8 |
 | Hardware | one A10G; 6.7 hours and 18.8 GB peak per Tiny Aya run |
 
-Runs share every pair, attack and label; only the language of the injected instruction differs.
+Within a model, runs share every prompt, attack and label; only the language of the injected instruction differs.
 
 ### Evaluation protocol
 
@@ -249,7 +250,7 @@ Tiny Aya is evaluated merged, because vLLM does not serve LoRA on its architectu
 
 Both Tiny Aya Global defenses have three training seeds.
 Four single-seed ablations vary the recipe: a quarter of pairs multilingual instead of half, Hindi only, native scripts only, and no input role.
-A fifth keeps all 4,834 English pairs and adds the 2,354 translated ones, instead of replacing English pairs.
+A fifth keeps every English pair and adds the translated copies of the multilingual slots instead of replacing them (7,188 pairs on Tiny Aya Global, 6,913 on Llama 3.1 8B).
 The other families have one seed each.
 
 ## 7. Results
@@ -268,7 +269,7 @@ That includes Meta's own Meta-SecAlign-8B and -70B, and Tiny Aya Fire, Earth and
 Qwen3's defense is weaker overall, 64% of English cases under the judge, but weakest in English.
 The defense appears to have learned "text in the input role is data", not "ignore English instructions": the ablation that removes the input role, putting the data in the user's turn, leaves 30.8% of cases open to language search against 21.3% with it (Section 7.5).
 
-*Table 2. Cases hijacked (%), one try per language, LLM judge.*
+*Table 2. Cases hijacked (%), one try per language, LLM judge, first training seed for every row (Tiny Aya Global's three-seed mean in English is 33.5%).*
 
 | Model, defense | English | Mean of the other 10 | Worst single language |
 |---|---|---|---|
@@ -401,7 +402,8 @@ We checked each explanation in turn.
 
 Tiny Aya shows none of this (start/end 91, 88, 91; Hindi answers 94-95% in every run), and Qwen3 only a dip on start/end (96 to 88).
 *Why Llama.* Training moved Llama much further than Tiny Aya. DPO's implicit reward for the preferred answer ends positive on Tiny Aya (+1.4 and +1.6) but negative on Llama (-0.4 and -0.9): training lowered the probability of the very answers it was meant to keep, a known sign of over-optimization. The reward gap between preferred and rejected answers is 15-16 on Tiny Aya, 22 for Llama's English-only run and 35 for its low-resource run, and the IFEval losses scale the same way (none, -8.3, -14.4).
-The likely cause is data scale: Meta trained Meta-SecAlign-8B on 19,157 pairs at 256 per update, while we trained on 4,696 pairs at 64 per update, as many optimizer steps (about 220) on a quarter of the data.
+Tiny Aya takes about as many steps on about as much data without this, so Llama is simply more sensitive to the recipe.
+The main difference from Meta's own Llama run is data scale: Meta trained Meta-SecAlign-8B on 19,157 pairs at 256 per update, we on 4,696 pairs at 64 per update, about as many optimizer steps (about 220) on a quarter of the data.
 More data points the same way: our run that keeps every English pair and adds the translated ones trains on 6,913 pairs, ends with a reward gap of 24 rather than 35 despite taking more steps, and loses 6.1 IFEval points rather than 14.4.
 *Why Hindi in particular.* In every model's low-resource data, the rejected answer to a Hindi injection is in Hindi (95-99% of such pairs) and the preferred answer is in English (0% Hindi), so training can lower its loss either by ignoring the injection or by never writing Hindi. Tiny Aya learns the first; the over-trained Llama partly learns the second, and then answers 99% of Hindi prompts in English.
 Meta-SecAlign-70B's 8-point loss on IndicIFEval is not this: it still answers 92% of Hindi prompts in Hindi, like its undefended model.
@@ -579,7 +581,7 @@ The idea, the literature review, the experimental design, stitching the pieces i
 ## Changelog
 
 - v1 (Nov 15): Tiny Aya Global, three training mixes, one seed.
-- v2 (Nov 24): three seeds and four ablations; Tiny Aya Fire, Earth and Water, Qwen3-4B, Llama 3.1 8B and Llama 3.3 70B; prompting defenses, Prompt Guard 2 and Meta-SecAlign; seven extra languages; equal-budget controls and an adaptive attacker; the LLM judge; instruction following, math, serving speed and tokenizers; AgentDojo; native-speaker review. The headline changed: per-language transfer holds, but the filter, extra tries and the scoring rule leak.
+- v2 (Nov 22): three seeds and four ablations; Tiny Aya Fire, Earth and Water, Qwen3-4B, Llama 3.1 8B and Llama 3.3 70B; prompting defenses, Prompt Guard 2 and Meta-SecAlign; seven extra languages; equal-budget controls and an adaptive attacker; the LLM judge; instruction following, math, serving speed and tokenizers; AgentDojo; native-speaker review. The headline changed: per-language transfer holds, but the filter, extra tries and the scoring rule leak.
 
 ## Appendix
 
