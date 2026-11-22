@@ -138,7 +138,7 @@ def promptguard_languages(acl: Path, out: Path) -> None:
             for f, _ in MODELS
         ]
     )
-    fig, ax = plt.subplots(figsize=(WIDTH, 1.9))
+    fig, ax = plt.subplots(figsize=(WIDTH, 1.75))
     ax.imshow(np.ma.masked_invalid(grid), cmap="Blues", vmin=0, vmax=110, aspect="auto")
     for (i, j), value in np.ndenumerate(grid):
         label, colour = ("n/a", "#a6a6a6") if np.isnan(value) else (f"{value:.0f}", INK)
@@ -277,7 +277,7 @@ FAMILIES = [
 def low_resource(acl: Path, out: Path) -> None:
     """Rate over all 11 languages: English-only training, then with low-resource injections."""
     rows = read(acl / "judged_language_risk.csv")
-    fig, axes = plt.subplots(1, 2, figsize=(WIDTH, 1.8), sharey=True)
+    fig, axes = plt.subplots(1, 2, figsize=(WIDTH, 1.7), sharey=True)
     for ax, (rule, title) in zip(
         axes,
         [("markdown-tolerant", "Reply starts with “Hacked”"), ("judged", "LLM judge")],
@@ -369,7 +369,7 @@ def utility_change(metrics_csv: Path, out: Path) -> None:
     """Each defense's score minus the same model's undefended score, per benchmark."""
     scores = utility_scores(metrics_csv)
     rows = [c for c in COSTS if any((c[0], b) in scores for b, *_ in BENCHMARKS)]
-    fig, axes = plt.subplots(1, len(BENCHMARKS), figsize=(WIDTH, 2.05), sharey=True)
+    fig, axes = plt.subplots(1, len(BENCHMARKS), figsize=(WIDTH, 1.9), sharey=True)
     for ax, (benchmark, _, _, title) in zip(axes, BENCHMARKS, strict=True):
         ax.axvspan(-2.5, 2.5, color="#f2f2f2", linewidth=0)
         ax.axvline(0, color="#9a9a9a", linewidth=0.8)
@@ -429,6 +429,121 @@ def tokenizer_parity(acl: Path, out: Path) -> None:
     save(fig, out, "tokenizer_parity")
 
 
+BASELINE, ATTACK = "#c9c9c9", "#36609e"  # the English or single-try bar; the attacker's options
+TRANSFER = [
+    ("llama70b-meta-secalign", "MSA\n70B"),
+    ("llama8b-meta-secalign", "MSA\n8B"),
+    ("llama8b-english-only", "Ours\nLlama"),
+    ("english-only", "Ours\nAya"),
+    ("qwen-english-only", "Ours\nQwen"),
+]
+FILTERED = [  # a dagger marks the languages on Prompt Guard 2's model card
+    ("english", "EN\u2020"),
+    ("french", "FR\u2020"),
+    ("hindi", "HI\u2020"),
+    ("romanized-hindi", "HI\nLatin"),
+    ("swahili", "SW"),
+]
+LIGHT = "#9db8e3"  # a rule that overcounts, drawn lighter than the attacker's bars
+TOP = 112  # headroom above 100% so the gain brackets clear the bars and the titles
+
+
+def one_try(path: Path, model: str) -> dict[str, float]:
+    """Per-language one-try attack success in %, averaged over training seeds."""
+    by_seed: dict[str, dict[str, float]] = {}
+    for r in read(path):
+        if r["model"] == model and r["seed"] in ("0", "1", "2") and r["defended_rate"]:
+            by_seed.setdefault(r["language"], {})[r["seed"]] = float(r["defended_rate"])
+    return {language: 100 * np.mean(list(v.values())) for language, v in by_seed.items()}
+
+
+def bars(ax, values: list[float], labels: list[str], colours: list[str], bold=()) -> None:
+    ax.bar(range(len(values)), values, width=0.66, color=colours)
+    for x, value in enumerate(values):
+        weight = "bold" if x in bold else "normal"
+        ax.text(x, value + 2, f"{value:.0f}", ha="center", va="bottom", fontsize=7, weight=weight)
+    ax.set_xticks(range(len(values)), labels, fontsize=7)
+    ax.tick_params(axis="x", length=0)
+
+
+def bracket(ax, x0: int, x1: int, values: list[float], label: str) -> None:
+    """A gain bracket from bar x0 to bar x1, clear of the value labels under it."""
+    y = max(values[x0 : x1 + 1]) + 15
+    ax.plot([x0, x0, x1, x1], [y - 2.5, y, y, y - 2.5], color=INK, linewidth=0.7)
+    ax.text((x0 + x1) / 2, y + 1.5, label, ha="center", va="bottom", fontsize=7.5, weight="bold")
+
+
+def findings(acl: Path, out: Path) -> None:
+    """The four findings at a glance, one panel each, for the paper's first figure."""
+    core = [name for name, _ in LANGUAGES]
+    widths = [2.2, 1.6, 1.15, 1.15]
+    fig, axes = plt.subplots(1, 4, figsize=(WIDTH, 1.95), gridspec_kw={"width_ratios": widths})
+
+    ax = axes[0]  # Trained defenses: English next to the worst other language, LLM judge
+    for x, (model, _) in enumerate(TRANSFER):
+        rates = one_try(acl / "comprehension_adjusted_judged.csv", model)
+        english = rates["english"]
+        worst = max(rates[v] for v in core if v != "english")
+        for dx, value, colour in ((-0.19, english, BASELINE), (0.19, worst, ATTACK)):
+            ax.bar(x + dx, value, width=0.36, color=colour)
+            ax.text(x + dx, value + 2, f"{value:.0f}", ha="center", va="bottom", fontsize=6.5)
+    ax.set_xticks(range(len(TRANSFER)), [label for _, label in TRANSFER], fontsize=6.5)
+    ax.tick_params(axis="x", length=0)
+    ax.legend(
+        handles=[
+            plt.Rectangle((0, 0), 1, 1, color=BASELINE, label="English"),
+            plt.Rectangle((0, 0), 1, 1, color=ATTACK, label="Worst other language"),
+        ],
+        loc="upper left",
+        fontsize=7,
+        handlelength=1,
+    )
+    ax.set_ylabel("Cases hijacked (%)")
+    ax.set_title("(a) Trained defenses hold\nin every language")
+
+    ax = axes[1]  # The filter: one try per language behind Prompt Guard 2, starts-with rule
+    rates = one_try(acl / "comprehension_adjusted.csv", "promptguard")
+    values = [rates[v] for v, _ in FILTERED]
+    bars(ax, values, [label for _, label in FILTERED], [BASELINE] + [ATTACK] * 4, bold=(0, 4))
+    bracket(ax, 0, 4, values, f"+{values[-1] - values[0]:.0f}")
+    ax.set_title("(b) The input filter\nmisses Swahili")
+
+    ax = axes[2]  # Extra tries: our English-only defense, one training seed, starts-with rule
+    budget = {
+        (r["family"], r["k"]): 100 * float(r["union"])
+        for r in read(acl / "equal_budget.csv")
+        if r["model"] == "english-only" and r["seed"] == "1"
+    }
+    values = [budget["translation", "1"], budget["translation", "11"], budget["paraphrase", "11"]]
+    labels = ["1\ntry", "11\nlang.", "11\nreword."]
+    bars(ax, values, labels, [BASELINE] + [ATTACK] * 2, bold=(0, 1))
+    bracket(ax, 0, 1, values, f"+{values[1] - values[0]:.0f}")
+    ax.set_title("(c) Extra tries\nget through")
+
+    ax = axes[3]  # Scoring: the same English replies of our English-only defense, three rules
+    values = [
+        one_try(acl / f"comprehension_adjusted{suffix}.csv", "english-only")["english"]
+        for suffix in ("", "_judged", "_anywhere")
+    ]
+    labels = ["Starts\nwith", "LLM\njudge", "Any-\nwhere"]
+    bars(ax, values, labels, [BASELINE, ATTACK, LIGHT], bold=(0, 1))
+    bracket(ax, 0, 1, values, f"+{values[1] - values[0]:.0f}")
+    ax.set_title("(d) The official scorer\nmisses hijacks")
+
+    for ax in axes:
+        ax.set_ylim(0, TOP)
+        ax.set_yticks([0, 25, 50, 75, 100])
+        ax.spines["left"].set_bounds(0, 100)
+        ax.grid(axis="y", color=GRID, linewidth=0.6)
+        ax.set_axisbelow(True)
+        for side in ("top", "right"):
+            ax.spines[side].set_visible(False)
+    for ax in axes[1:]:
+        ax.set_yticklabels([])
+    fig.subplots_adjust(wspace=0.3)
+    save(fig, out, "findings")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--acl", type=Path, default=Path("results/acl"))
@@ -437,6 +552,7 @@ def main() -> None:
     args = parser.parse_args()
     style()
     args.out.mkdir(parents=True, exist_ok=True)
+    findings(args.acl, args.out)
     defense_gap(args.acl, args.out, "judged")
     defense_gap(args.acl, args.out, "markdown-tolerant")
     promptguard_languages(args.acl, args.out)

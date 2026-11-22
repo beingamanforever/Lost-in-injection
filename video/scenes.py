@@ -105,7 +105,7 @@ LANGUAGES = {  # The eleven attack languages, each in a font that has its script
     "中文": "Songti SC",
     "हिन्दी": "Kohinoor Devanagari",
     "Kiswahili": SANS,
-    "Hindi (Latin)": SANS,
+    "Romanized Hindi": SANS,
     "Hinglish": SANS,
     "اردو": "Noto Nastaliq Urdu",
     "தமிழ்": "Tamil Sangam MN",
@@ -744,9 +744,14 @@ class LostInInjection(MovingCameraScene):
         lanes = [
             ("English", 1.3, {1, 3, 5, 6, 8, 10, 12, 13}),
             ("Kiswahili", -0.1, {6}),
-            ("Hindi (Latin)", -1.5, {9}),
+            ("Romanized Hindi", -1.5, {9}),
         ]
-        tags = VGroup(*[tag(n, 24).move_to([-5.6, y, 0]) for n, y, _ in lanes])
+        # Left-aligned with a margin the camera's slow push-in never reaches; the arrows start
+        # just past the widest tag, so a longer language name cannot collide with either.
+        tags = VGroup(*[tag(n, 24) for n, _, _ in lanes])
+        for t, (_, y, _) in zip(tags, lanes):
+            t.move_to([-6.4 + t.width / 2, y, 0])
+        start_x = tags.get_right()[0] + 0.55
         stop_x, end_x = screen.get_left()[0] - 0.05, model.get_left()[0] + 0.1
         jitter = [0.0, -0.2, 0.2, -0.1, 0.1, -0.28, 0.28, 0.05]
 
@@ -760,7 +765,7 @@ class LostInInjection(MovingCameraScene):
                     color=INK,
                     stroke_width=5,
                     max_tip_length_to_length_ratio=0.45,
-                ).move_to([-4.2, y, 0])
+                ).move_to([start_x, y, 0])
                 if i in caught:  # stuck in the filter, grayed out
                     at = shot.copy().move_to(
                         [stop_x - 0.3, y + jitter[sorted(caught).index(i) % len(jitter)], 0]
@@ -1110,7 +1115,7 @@ class LostInInjection(MovingCameraScene):
             run_time=0.8,
         )
         added = VGroup(
-            *[tag(n, 24, LANGUAGES[n]) for n in ("हिन्दी", "Kiswahili", "Hindi (Latin)", "Hinglish")]
+            *[tag(n, 24, LANGUAGES[n]) for n in ("हिन्दी", "Kiswahili", "Romanized Hindi", "Hinglish")]
         ).arrange(RIGHT, buff=0.25)
         joining = text("added to training:", 24, GRAY)
         VGroup(joining, added).arrange(RIGHT, buff=0.3).move_to([0, 2.2, 0]).align_to(names, LEFT)

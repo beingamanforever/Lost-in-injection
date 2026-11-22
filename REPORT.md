@@ -38,8 +38,12 @@ The same recipe on Qwen3-4B and Llama 3.1 8B, beside Meta's own Meta-SecAlign-8B
 > | Question | Do prompt-injection defenses hold when the attacker writes in another language, script or code-mix? |
 > | Holds | Defenses trained into the model, ours and Meta's, at 3B to 70B: no single language beats English by more than a few points. |
 > | Leaks | The Prompt Guard 2 filter misses Swahili and romanized Hindi; trying many languages or rewordings per case gets through; the starts-with scorer misses replies that append the payload, by up to 45 points. |
-> | Fix | Low-resource injections in training lower the all-language rate in all six families trained. |
+> | Fix | Low-resource injections in training lower the all-language rate on all six models trained. |
 > | Cost | None measurable on Tiny Aya; 8-14 IFEval points on Llama 3.1 8B; a runtime adapter costs 22-29% of serving throughput. |
+
+![The four findings at a glance](results/figures/findings.png)
+
+*At a glance. (a) With one try per language, the worst language stays near English for every trained defense (LLM judge; MSA: Meta-SecAlign). (b) Behind Prompt Guard 2, one Swahili try reaches Tiny Aya in 83% of cases, against 39% in English. (c) Against our English-only defense, 11 languages hijack 17 points more than one try, and 11 English rewordings as many. (d) The same English replies: 9% hijacked by the official rule, 33% by the judge.*
 
 ![Figure 1](results/figures/defense_gap.png)
 
@@ -177,7 +181,7 @@ A translation survives only if every masked identifier (email, URL, quoted span,
 CuratorKIT kept 19,099 of 19,157 clean rows and 51,833 of 52,002 injections; the gates passed 4,307-4,656 of 4,799 pool texts per language.
 Every evaluation text passes in every variant, so all variants share the same 208 cases.
 MetricX-24 rates the training translations at 1.6-1.8 (0-25, lower is better) in French, Chinese and Hindi and 3.3 in Swahili.
-Native speakers rated the attack translations on our review site: Hinglish reads poorly (meaning 2.3 of 5) and Hindi renders "Print exactly" as "print properly", so the per-language numbers for those two are, if anything, conservative.
+Seventeen native speakers gave 75 ratings of the attack translations on our review site: Hinglish reads poorly (meaning 2.2 of 5, 30 ratings), Hindi is fair (3.3, 38 ratings) and Swahili is accurate but stilted (meaning 3.7, naturalness 1.7, 7 ratings); Hindi renders "Print exactly" as "print properly". The per-language numbers for those languages are therefore, if anything, conservative.
 
 ### Splits and leak check
 
@@ -360,13 +364,13 @@ Meta-SecAlign-8B goes from 0.5% to 2.4% in English and from 0.5% to 13.5% over 1
 The judge's "hijacked" calls are close to a subset of the earlier hand labels: of its 67 on 200 replies the author labelled with a looser four-way scheme, 63 were marked as containing the injection.
 Agreement with hand labels on the judge's own four questions is being collected on the review site.
 
-### 7.5 Low-resource training data helps in every family
+### 7.5 Low-resource training data helps every model we trained
 
 ![Figure 7](results/figures/low_resource.png)
 
 *Figure 7. Cases hijacked when the attacker tries all 11 languages, after English-only training (blue) and with low-resource injections added (orange), under both rules.*
 
-Adding Hindi, Swahili, romanized Hindi and Hinglish injections to training lowers the 11-language rate in all six families under the judge, most on Qwen3 (78.8% to 45.2%) and Tiny Aya Earth (63.5% to 49.0%) (Figure 7).
+Adding Hindi, Swahili, romanized Hindi and Hinglish injections to training lowers the 11-language rate on all six models under the judge, most on Qwen3 (78.8% to 45.2%) and Tiny Aya Earth (63.5% to 49.0%) (Figure 7).
 On Tiny Aya Global it falls from 21.3% to 14.3% under the starts-with rule (difference -7.1 points, 95% CI -13.6 to -0.8, three seeds each), and over the seven extra held-out languages, which no run trains on, from 16.0% to 9.5%.
 On the Tiny Aya models it lowers the other languages and leaves English within noise, except Water under the starts-with rule (6.2% to 13.0%); on Qwen3 it is a stronger defense in every language.
 French and Chinese injections give 15.9% on their single seed, inside the low-resource seeds' range of 8.7-18.3%, so we claim only that non-English injections help, not that low-resource ones help more.
@@ -594,7 +598,7 @@ The idea, the literature review, the experimental design, stitching the pieces i
 
 - v1 (Nov 15): Tiny Aya Global, three training mixes, one seed.
 - v2 (Nov 22): three seeds and four ablations; Tiny Aya Fire, Earth and Water, Qwen3-4B, Llama 3.1 8B and Llama 3.3 70B; prompting defenses, Prompt Guard 2 and Meta-SecAlign; seven extra languages; equal-budget controls and an adaptive attacker; the LLM judge; instruction following, math, serving speed and tokenizers; AgentDojo; native-speaker review. The headline changed: per-language transfer holds, but the filter, extra tries and the scoring rule leak.
-- v2.1 (Nov 23): AgentDojo complete in all five languages for every defense; Qwen3 on Marco-Bench-MIF; figures label our defenses "Ours, English-only" and "Ours, + low-resource", and romanized Hindi by name.
+- v2.1 (Nov 23): AgentDojo complete in all five languages for every defense; Qwen3 on Marco-Bench-MIF; figures label our defenses "Ours, English-only" and "Ours, + low-resource", and romanized Hindi by name; a four-panel figure of the findings; updated method and variant figures; native-speaker counts (75 ratings from 17 speakers).
 
 ## Appendix
 
@@ -616,7 +620,7 @@ The idea, the literature review, the experimental design, stitching the pieces i
 
 ![Table A1](docs/figures/variants.png)
 
-*Table A1. One AlpacaFarm-Hacked injection in all 11 variants, as the model sees it. The payload is in red; the target word stays "Hacked".*
+*Table A1. One AlpacaFarm-Hacked injection in all 18 variants, as the model sees it, grouped by whether a training mix contains the variant. The injected instruction is in red; the target word stays "Hacked".*
 
 ![Table A2](docs/figures/table_attack.png)
 

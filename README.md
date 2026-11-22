@@ -28,16 +28,25 @@ We attacked eight defenses on four model families, from Tiny Aya (3B) to Llama 3
 - **The input filter does not.** Meta's Prompt Guard 2 removes 33-71% of English attacks but only 6-35% of Swahili and 7-12% of romanized-Hindi ones. Behind it, one Swahili attempt hijacks Tiny Aya in 83% of cases, against 39% in English.
 - **Extra tries get through.** Trying all 11 languages on each case still hijacks 21% of cases against our English-only Tiny Aya defense. Eleven English paraphrases do as well, and after low-resource training better, so the risk is variety, of which language is one cheap source.
 - **The standard scorer undercounts.** Meta-SecAlign's rule counts a hijack only if the reply starts with "Hacked". It misses replies that open with `**Hacked!**` and replies that finish the task and append the payload. An LLM judge puts our English-only Tiny Aya defense at 33% in English, not 9%, and finds a language gap even for Meta-SecAlign-70B.
-- **Low-resource data helps.** Adding Hindi, Swahili, romanized Hindi and Hinglish injections to training lowers the 11-language rate in all six families we trained, by up to 34 points on Qwen3, at no cost on Tiny Aya.
+- **Low-resource data helps.** Adding Hindi, Swahili, romanized Hindi and Hinglish injections to training lowers the 11-language rate on all six models we trained, by up to 34 points on Qwen3, at no cost on Tiny Aya.
 - **Defenses have costs elsewhere.** Nothing measurable on Tiny Aya (IFEval, Global-MMLU-Lite, MATH-500, MGSM), but our recipe over-trains Llama 3.1 8B on a quarter of Meta's data and costs it 8-14 IFEval points (Meta-SecAlign costs one; the report traces why), a runtime LoRA adapter costs 22-29% of serving throughput, and merging it into bf16 weights instead can erase it: Qwen3's merged English-only defense let 90% of English attacks through, against 41% at runtime.
+- **Agent benchmarks sit near their floor.** On AgentDojo in five languages, Llama 3.1 8B solves 16.5% of tasks and attacks succeed in under 4% of cases even undefended, too few to tell languages or defenses apart.
 
-![English against all 11 languages, for every defense and model](results/figures/defense_gap.png)
+![The four findings at a glance](results/figures/findings.png)
 
-<sub>Cases hijacked (%) in English (open) and when the attacker may try all 11 languages (filled); an LLM judge decides what counts as a hijack.</sub>
+<sub>Cases hijacked (%) of 208. (a) One try per language, LLM judge: the worst language stays near English for every trained defense (MSA: Meta-SecAlign). (b) Behind Prompt Guard 2, one Swahili try gets through in 83% of cases, against 39% in English. (c) Against our English-only defense, 11 languages hijack 17 points more than one try, and 11 English rewordings as many. (d) The same English replies: 9% hijacked by the official rule, 33% by the judge.</sub>
 
 <sub>\* The models do not claim the same languages. Tiny Aya's model cards list every language we test, Qwen3's release all but Amharic, and Llama 3.1 and 3.3 only English, French, Hindi, Spanish and Thai. Undefended Llama 3.1 8B follows non-English injections so rarely that its gaps say little about the defense. The low-resource training mix is Hindi, Swahili, romanized Hindi and Hinglish. [Table 1 of the report](REPORT.md#which-model-was-tested-on-what) lists which model was tested on which languages and benchmarks.</sub>
 
 <table>
+  <tr>
+    <td width="50%"><img src="results/figures/defense_gap.png" alt="English against all 11 languages, for every defense and model"></td>
+    <td width="50%"><img src="results/figures/utility_change.png" alt="Each defense's benchmark scores against the same model undefended"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>English (open) against all 11 languages (filled), every defense and model</sub></td>
+    <td align="center"><sub>What each defense costs on IFEval, IndicIFEval and Global-MMLU-Lite</sub></td>
+  </tr>
   <tr>
     <td width="50%"><img src="results/figures/promptguard_languages.png" alt="Share of attacks Prompt Guard 2 removes per language and model"></td>
     <td width="50%"><img src="results/figures/scoring_rules_three.png" alt="The same replies under three definitions of a hijack"></td>
@@ -52,7 +61,7 @@ We attacked eight defenses on four model families, from Tiny Aya (3B) to Llama 3
   </tr>
   <tr>
     <td align="center"><sub>At equal tries, English paraphrases match translations</sub></td>
-    <td align="center"><sub>Low-resource training lowers the all-language rate in every family</sub></td>
+    <td align="center"><sub>Low-resource training lowers the all-language rate on every model</sub></td>
   </tr>
 </table>
 
@@ -78,6 +87,7 @@ bash scripts/run_family.sh qwen   # and fire, earth, water, llama8b
 bash scripts/run_meta_secalign.sh llama8b           # and llama70b, on two H200s
 bash scripts/run_prompt_defenses.sh qwen            # sandwich, isolation, Prompt Guard 2
 bash scripts/run_controls.sh                        # equal-budget control sets
+bash scripts/run_agentdojo.sh 0 llama8b-base:no-attack,english,hindi,swahili,chinese,tamil   # and each defense
 python -m lost_in_injection.judge --runs-root runs --api-model qwen/qwen3.7-flash   # needs OPENROUTER_API_KEY
 python -m lost_in_injection.metrics --runs runs --out results
 python -m lost_in_injection.analysis --runs runs --out results/acl
