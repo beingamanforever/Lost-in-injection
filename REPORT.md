@@ -369,6 +369,27 @@ On Tiny Aya, instruction following holds too: paired over 6,441 prompts from IFE
 On Llama 3.1 8B our recipe, tuned on Tiny Aya, costs 8.3 IFEval points with English-only data and 14.4 with low-resource data, where Meta-SecAlign-8B costs 0.9.
 Meta-SecAlign-70B keeps English instruction following (-1.9) but loses 8.0 points in Hindi.
 On Qwen3 our English-only defense costs 3.0 IFEval points and 6.9 in Hindi, and the low-resource one 1.3 and 3.7: training on Hindi injections halves the loss in Hindi.
+
+**Why our recipe costs Llama 3.1 8B instruction following.**
+We checked each explanation in turn.
+*Not the tokenizer or the prompt.* Llama 3.1 8B, Meta-SecAlign-8B and -70B and our model folder share one vocabulary and one set of special tokens, encode English, Hindi, Swahili and Tamil samples to identical ids, and render the same prompt, `input` role included; our training prompts end exactly like the evaluation prompts.
+*Not the adapter shape or optimizer settings.* Our adapter matches Meta-SecAlign-8B's (rank 64, alpha 8, dropout 0.1, the same five projections), and so do the learning rate (1.6e-4), epochs (3) and DPO beta (0.1).
+*Where the losses are.* The drop sits in three IFEval instruction types, while answers are not truncated or looping:
+
+| IFEval instruction accuracy (%) | Undefended | Our DPO, English | Our DPO, + low-resource | Meta-SecAlign-8B |
+|---|---|---|---|---|
+| Start or end with an exact phrase, or quote the whole reply | 94 | 64 | 54 | 88 |
+| Punctuation ("use no commas") | 89 | 77 | 58 | 89 |
+| Respond in a given language | 84 | 71 | 45 | 74 |
+| IndicIFEval prompts answered in Hindi | 98 | 98 | **1** | 98 |
+
+Tiny Aya shows none of this (start/end 91, 88, 91; Hindi answers 94-95% in every run), and Qwen3 only a dip on start/end (96 to 88).
+*Why Llama.* Training moved Llama much further than Tiny Aya. DPO's implicit reward for the preferred answer ends positive on Tiny Aya (+1.4 and +1.6) but negative on Llama (-0.4 and -0.9): training lowered the probability of the very answers it was meant to keep, a known sign of over-optimization. The reward gap between preferred and rejected answers is 15-16 on Tiny Aya, 22 for Llama's English-only run and 35 for its low-resource run, and the IFEval losses scale the same way (none, -8.3, -14.4).
+The likely cause is data scale: Meta trained Meta-SecAlign-8B on 19,157 pairs at 256 per update, while we trained on 4,696 pairs at 64 per update, as many optimizer steps (about 220) on a quarter of the data.
+More data points the same way: our run that keeps every English pair and adds the translated ones trains on 6,913 pairs, ends with a reward gap of 24 rather than 35 despite taking more steps, and loses 6.1 IFEval points rather than 14.4.
+*Why Hindi in particular.* In every model's low-resource data, the rejected answer to a Hindi injection is in Hindi (95-99% of such pairs) and the preferred answer is in English (0% Hindi), so training can lower its loss either by ignoring the injection or by never writing Hindi. Tiny Aya learns the first; the over-trained Llama partly learns the second, and then answers 99% of Hindi prompts in English.
+Meta-SecAlign-70B's 8-point loss on IndicIFEval is not this: it still answers 92% of Hindi prompts in Hindi, like its undefended model.
+A rerun on Meta's data scale, or with preferred answers that keep the user's language, would test this account; we have not run it.
 TODO: MATH-500 / MGSM for Tiny Aya.
 
 **Serving speed.**
