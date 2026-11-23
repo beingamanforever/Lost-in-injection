@@ -363,7 +363,7 @@ def main() -> None:
         if page_rows:
             path.write_text(PAGE.format(rows=page_rows))
         else:
-            path.unlink(missing_ok=True)  # No stale phase-2 table once its rows are gone.
+            path.unlink(missing_ok=True)  # No stale table once its rows are gone.
     print(f"tables written to {args.out}")
 
 

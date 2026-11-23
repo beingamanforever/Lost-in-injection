@@ -518,7 +518,8 @@ We expect more seeds to tighten per-language intervals to about ±3 points, and 
 | Data, outputs, logs, metrics | [Lost in Injection: data and model outputs](https://huggingface.co/collections/beingamanforever/lost-in-injection-data-and-model-outputs-6af83c907e17226835782018) |
 | Analysis tables | `results/metrics.csv`, `results/acl/*.csv` (judge answers, per-language rates, controls, tokenizers, AgentDojo) |
 | Native-speaker review site | [contact-1950--lii.us-east.modal.run](https://contact-1950--lii.us-east.modal.run) |
-| Video | [`docs/lost-in-injection.mp4`](docs/lost-in-injection.mp4), 87 seconds, made with Manim from `video/` and narrated with ElevenLabs v4 |
+| Video | [`docs/lost-in-injection.mp4`](docs/lost-in-injection.mp4), 87 seconds, made with Manim from `video/`, narrated with ElevenLabs v4, over a score synthesized by `video/score.py` |
+| Slides | [`docs/lost-in-injection-slides.pdf`](docs/lost-in-injection-slides.pdf), 14 slides and a one-slide appendix |
 
 ## 12. Reproduction
 

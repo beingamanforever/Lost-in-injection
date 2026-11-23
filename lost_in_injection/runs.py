@@ -5,7 +5,7 @@ The final pairs are ordered with the multilingual slots first. A run writes slot
 `multilingual-share-25`'s non-English pairs are the first half of `english-plus-low-resource`'s, in
 the same languages.
 
-Phase 2's regional Tiny Aya models (FAMILY) and the paper's other model families
+The regional Tiny Aya models (FAMILY) and the paper's other model families
 (OTHER_FAMILIES) reuse Global's runs under a prefixed name, e.g. "fire-english-only" or
 "llama8b-english-only", so `language` gives them exactly Global's slot languages, and `base_model`
 can tell which base checkpoint a (possibly mixed) list of run names trains on. Global runs keep

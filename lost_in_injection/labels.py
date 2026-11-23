@@ -8,7 +8,7 @@ rejected answers the injected instruction alone, once per pair and language a ru
 label records its finish reason, so export can drop pairs that hit the token cap. Each pair also
 gets its untrusted data per language, built with Meta-SecAlign's attack code (utils.py:84-88).
 
-`--model` and `--out` pick which model self-generates and where its labels go, so Phase 2's
+`--model` and `--out` pick which model self-generates and where its labels go, so the
 family models each write a separate labelled file instead of sharing Global's.
 """
 

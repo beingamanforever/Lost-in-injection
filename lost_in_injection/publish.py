@@ -9,7 +9,7 @@ uploaded copies name the Hub model instead. Uploading again adds what is new, so
 training and again after evaluation. New repositories start private; they were made public for
 the submission.
 
-Phase 2's family runs are named "<model>-<run>" (e.g. "fire-english-only"), so their adapter
+The family runs are named "<model>-<run>" (e.g. "fire-english-only"), so their adapter
 repos get a derived name (`ADAPTER_REPOS.get` falls back to `tiny-aya-secalign-<run>`) and their
 cards and configs point at the matching Hub model. Llama and Qwen adapters are named after their
 base, e.g. `Llama-3.1-8B-Instruct-secalign-english-only`: Llama's license asks that a model built

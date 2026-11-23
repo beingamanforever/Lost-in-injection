@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build and run one of Phase 2's regional Tiny Aya models, or one of the paper's other model
+# Build and run one of the regional Tiny Aya models, or one of the paper's other model
 # families (Llama 3.1 8B, Llama 3.2 3B, Qwen3 4B), end to end.
 # Usage: scripts/run_family.sh <fire|earth|water|llama8b|llama3b|qwen>
 set -euo pipefail

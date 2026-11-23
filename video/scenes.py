@@ -1,14 +1,17 @@
 """The explainer video: one continuous Manim scene, timed to the narration clips in video/audio.
 
-Same visual language as the report: Calibri (or Helvetica Neue), the paper's pastel boxes, gray
-for the undefended model and one colour per defense, red only for what the attacker achieves, and
-line icons from video/icons. A silent title card opens it; then each beat lives in its own region
-of one wide canvas and the camera pans from region to region, carrying the model chip and the
-Swahili payload across. Results are shown as motion; the few values it needs are the project's
-reported results, written in below. After every animation the scene checks its own layout (no two
-texts overlap, no text half cut by the frame), and at the end it checks that the audio track holds
-every narration clip; the render fails if either check does.
+A dark, cinematic look in the same colours as the paper's figures: a deep navy backdrop with soft
+teal and amber glows, film grain and drifting dust; Avenir Next; numbered chapter labels and a
+progress line along the bottom; gray for the undefended model, one colour per defense, and red only
+for what the attacker achieves. The title decodes from letters of the attack scripts. Each beat
+lives in its own region of one wide canvas and the camera pans from region to region, carrying the
+model chip and the Swahili payload across. Results are shown as motion; the few values it needs are
+the project's reported results, written in below. After every animation the scene checks its own
+layout (no two texts overlap, no text half cut by the frame), and at the end it checks that the
+audio track holds every narration clip; the render fails if either check does.
 Render: manim -qh --frame_rate 60 --disable_caching video/scenes.py LostInInjection
+Then: python video/score.py <the render in video/media> docs/lost-in-injection.mp4, which adds the
+score and normalizes loudness.
 """
 
 import json
@@ -16,7 +19,6 @@ import random
 from pathlib import Path
 
 import av
-import manimpango
 import numpy as np
 from manim import (
     DOWN,
@@ -31,10 +33,12 @@ from manim import (
     Create,
     DashedLine,
     DashedVMobject,
+    Dot,
     FadeIn,
     FadeOut,
     Group,
     GrowArrow,
+    GrowFromCenter,
     GrowFromEdge,
     ImageMobject,
     LaggedStart,
@@ -50,6 +54,7 @@ from manim import (
     SVGMobject,
     Text,
     Transform,
+    UpdateFromAlphaFunc,
     VGroup,
     VMobject,
     Wait,
@@ -67,45 +72,41 @@ from manim.utils.rate_functions import (
 )
 
 HERE = Path(__file__).parent
-config.background_color = "#fbfaf7"
+BG = "#0b1222"  # deep navy; the backdrop adds glows, a vignette and grain on top
+config.background_color = BG
 config.pixel_width, config.pixel_height = 1920, 1080
 config.output_file = "lost-in-injection"
 config.media_dir = str(HERE / "media")  # keep renders inside video/, wherever manim runs from
 
-INK, GRAY, LIGHT, ATTACK = "#1d1d1b", "#7d7c77", "#dcdbd5", "#c0392b"
-GREEN, GREEN_LINE, SAFE = "#e2efd9", "#a9d18e", "#4f8a2f"
-YELLOW, YELLOW_LINE = "#fbe5d6", "#f4b183"  # Untrusted data, peach as in the deck
-USER_ORANGE, TAG = "#ed7d31", "#262626"
-RED, RED_LINE = "#f8cecc", "#b85450"
-OVERRIDE, PAYLOAD = "#fff0a3", "#ffcdd0"
-ENGLISH_ONLY, LOW_RESOURCE, META_SECALIGN, PROMPT_GUARD = "#5fb5d1", "#e3804b", "#3b6ea8", "#c9a227"
-# One colour per defense: three prompts, the Prompt Guard filter, Meta-SecAlign 8B and 70B, and
-# our two DPO defenses.
+INK, GRAY, LIGHT, ATTACK = "#e9edf5", "#8b97ad", "#27324b", "#ff5d5d"
+GREEN, GREEN_LINE, SAFE = "#12302a", "#3fae84", "#3ddc97"
+YELLOW, YELLOW_LINE = "#2c2214", "#d39a4a"  # untrusted data: a dark amber card
+USER_ORANGE, TAG = "#f59e52", "#e9edf5"
+RED, RED_LINE = "#3b1519", "#ff5d5d"
+OVERRIDE, PAYLOAD = "#5b4a10", "#62202a"  # highlighter marks behind light text
+CARD, CARD_LINE = "#131c31", "#2b3858"  # a neutral card on the dark backdrop
+ACCENT = "#5fb5d1"  # chapter numbers and the progress line
+ENGLISH_ONLY, LOW_RESOURCE, META_SECALIGN, PROMPT_GUARD = "#5fb5d1", "#e3804b", "#6c9bd8", "#e0b84a"
+# One colour per defense, the same as the paper's figures: three prompts, the Prompt Guard filter,
+# Meta-SecAlign 8B and 70B, and our two DPO defenses.
 DEFENSES = [
     "#b9a3c9",
     "#d39bb3",
     "#a7b6d6",
     PROMPT_GUARD,
     META_SECALIGN,
-    "#27497a",
+    "#9db8e3",
     ENGLISH_ONLY,
     LOW_RESOURCE,
 ]
-OFFICE_FONTS = Path("/Applications/Microsoft PowerPoint.app/Contents/Resources/DFonts")
-CALIBRI = [OFFICE_FONTS / f for f in ("Calibri.ttf", "Calibrib.ttf", "Calibrii.ttf")]
-SANS = (
-    "Calibri"
-    if all(map(manimpango.register_font, map(str, filter(Path.exists, CALIBRI))))
-    and CALIBRI[0].exists()
-    else "Helvetica Neue"
-)
+SANS = "Avenir Next"  # ships with macOS; manim falls back to Helvetica Neue's metrics otherwise
 LANGUAGES = {  # The eleven attack languages, each in a font that has its script
     "English": SANS,
     "Français": SANS,
     "中文": "Songti SC",
     "हिन्दी": "Kohinoor Devanagari",
-    "Kiswahili": SANS,
     "Romanized Hindi": SANS,
+    "Kiswahili": SANS,
     "Hinglish": SANS,
     "اردو": "Noto Nastaliq Urdu",
     "தமிழ்": "Tamil Sangam MN",
@@ -126,6 +127,7 @@ HOLD = {
     "skills": 0.6,
     "close": 3.6,
 }
+TITLE = 2.5  # seconds of the silent title card
 HEADINGS = {
     "hook": "The attack",
     "question": "The defense",
@@ -193,23 +195,74 @@ def lockup() -> Group:
 def title_block(with_link: bool) -> Group:
     """The opening card; the end card adds the repository link."""
     name = text("Lost in Injection", 72, INK, weight="BOLD")
-    subtitle = text("Multilingual prompt-injection defenses", 28, GRAY)
-    parts = [VGroup(name, subtitle).arrange(DOWN, buff=0.3)]
+    rule = Line(ORIGIN, 1.6 * RIGHT, color=ACCENT, stroke_width=3)
+    subtitle = text("Multilingual attacks on prompt-injection defenses", 28, GRAY)
+    parts = [VGroup(name, rule, subtitle).arrange(DOWN, buff=0.32)]
     if with_link:
         parts.append(text("github.com/beingamanforever/Lost-in-injection", 28, INK))
     parts.append(lockup())
     return Group(*parts).arrange(DOWN, buff=0.9)
 
 
+# Letters from the scripts the attacks use (Devanagari, Ge'ez, Tamil, Cyrillic, Greek), all
+# left-to-right, so a scrambled title keeps its reading order.
+GLYPHS = "कखगघचजटडतदनपबमयरलवसहሀለሐመረሰቀበተነአከወዘየደገጠፈகஙசஞடணதநபமயரலவழளறனДЖЛПФЦЧШЯΔΘΛΞΠΣΦΨΩ"
+
+
+def decode(target: Text, run_time: float) -> UpdateFromAlphaFunc:
+    """`target` resolves from random letters of the attack scripts, left to right. The animated
+    copy ends as `target` exactly, so the layout check sees the final title."""
+    final, left = target.text, target.get_left()
+    size, rng = target.font_size, random.Random(5)
+    settle = [0.2 + 0.7 * i / len(final) + rng.uniform(-0.05, 0.05) for i in range(len(final))]
+    shown = target.copy()
+
+    def update(mob, alpha):
+        if alpha >= 1:
+            mob.become(target.copy())
+            return
+        pick = random.Random(int(alpha * 26))  # new letters about 20 times a second
+        s = "".join(
+            ch if ch == " " or alpha >= settle[i] else pick.choice(GLYPHS)
+            for i, ch in enumerate(final)
+        )
+        mob.become(
+            Text(s, font=SANS, font_size=size, color=INK, weight="BOLD")
+            .move_to(left, aligned_edge=LEFT)
+            .set_opacity(min(1.0, 0.35 + alpha))
+        )
+
+    return UpdateFromAlphaFunc(shown, update, run_time=run_time, rate_func=linear)
+
+
 def backdrop() -> ImageMobject:
-    """A faint warm-to-cool wash with a soft vignette, dithered so the gradient does not band."""
-    ys, xs = np.mgrid[0:1:540j, 0:1:960j]
-    warm, cool = np.array([252.0, 250.0, 246.0]), np.array([243.0, 246.0, 251.0])
-    mix = (0.65 * xs + 0.35 * ys)[..., None]
-    shade = 1 - 0.03 * (((xs - 0.5) / 0.5) ** 2 + ((ys - 0.5) / 0.5) ** 2)[..., None]
-    noise = np.random.default_rng(0).uniform(-0.5, 0.5, (540, 960, 1))
-    rgb = np.clip((warm * (1 - mix) + cool * mix) * shade + noise, 0, 255).astype(np.uint8)
+    """Deep navy, lit by a soft teal glow top left and a faint amber one bottom right, with a
+    vignette and film grain (the grain also keeps the gradient from banding)."""
+    h, w = 1080, 1920
+    ys, xs = np.mgrid[0:h, 0:w].astype(float)
+    ys, xs = ys / h, xs / w
+    top, bottom = np.array([15.0, 24.0, 44.0]), np.array([8.0, 12.0, 25.0])
+    rgb = top * (1 - ys[..., None]) + bottom * ys[..., None]
+    for cx, cy, radius, color in (
+        (0.12, 0.05, 0.55, (25.0, 70.0, 92.0)),  # teal
+        (0.92, 1.0, 0.5, (70.0, 38.0, 22.0)),  # amber
+    ):
+        d2 = ((xs - cx) * w / h) ** 2 + (ys - cy) ** 2
+        rgb += np.exp(-d2 / radius**2)[..., None] * np.array(color) * 0.6
+    vignette = 1 - 0.35 * (((xs - 0.5) / 0.5) ** 2 * 0.6 + ((ys - 0.5) / 0.5) ** 2 * 0.4)
+    grain = np.random.default_rng(0).normal(0, 1.6, (h, w, 1))
+    rgb = np.clip(rgb * vignette[..., None] + grain, 0, 255).astype(np.uint8)
     return ImageMobject(rgb).set(width=config.frame_width).set_z_index(-100)
+
+
+def glow(color: str, radius: float, strength: float = 0.5) -> ImageMobject:
+    """A soft round light, transparent at its edge, to sit behind a title or a key object."""
+    n = 256
+    ys, xs = np.mgrid[-1:1:n * 1j, -1:1:n * 1j]
+    alpha = np.exp(-(xs**2 + ys**2) / 0.18) * strength * 255
+    rgb = np.array([int(color[i : i + 2], 16) for i in (1, 3, 5)], dtype=float)
+    rgba = np.dstack([np.broadcast_to(rgb, (n, n, 3)), alpha]).astype(np.uint8)
+    return ImageMobject(rgba).set(width=2 * radius).set_z_index(-60)
 
 
 def check_mark(color: str = SAFE, size: float = 0.3) -> VMobject:
@@ -245,23 +298,32 @@ def ease(animation) -> None:
         animation.rate_func = ease_in_out_cubic
 
 
-def heading(s: str) -> Text:
-    """A small section label in the top-left corner, the same on every beat."""
-    return text(s, 26, "#a6a6a6", weight="BOLD").to_corner(UP + LEFT, buff=0.45)
+def heading(s: str) -> VGroup:
+    """The chapter label in the top-left corner, the same on every beat: its number in the accent
+    colour, then the name in spaced capitals."""
+    number = text(f"{list(HEADINGS.values()).index(s) + 1:02d}", 24, ACCENT, weight="BOLD")
+    name = MarkupText(
+        f'<span letter_spacing="{3 * 1024}">{s.upper()}</span>',
+        font=SANS,
+        font_size=20,
+        color=GRAY,
+        weight="BOLD",
+    )
+    return VGroup(number, name).arrange(RIGHT, buff=0.3).to_corner(UP + LEFT, buff=0.5)
 
 
 def tag(code: str, size: float = 26, font: str = SANS) -> VGroup:
-    """A language tag in a bold rounded box, after the lecture deck's En and ZH tags. MarkupText,
-    because Text renders nothing for a right-to-left-only string such as Urdu."""
+    """A language tag in a rounded chip. MarkupText, because Text renders nothing for a
+    right-to-left-only string such as Urdu."""
     label = MarkupText(code, font=font, font_size=snap(size), color=TAG, weight="BOLD")
     box = RoundedRectangle(
         corner_radius=0.1,
-        width=max(label.width + 0.3, 0.75),
+        width=max(label.width + 0.34, 0.75),
         height=label.height + 0.3,
-        fill_color="#ffffff",
+        fill_color=CARD,
         fill_opacity=1,
-        stroke_color=TAG,
-        stroke_width=3,
+        stroke_color="#5b6b8f",
+        stroke_width=2,
     )
     return VGroup(box, label.move_to(box))
 
@@ -327,6 +389,19 @@ def boxes_overlap(a, b, margin: float = 0.03) -> bool:
     )
 
 
+def contains(outer, inner, margin: float = 0.03) -> bool:
+    return (
+        outer.get_left()[0] - margin <= inner.get_left()[0]
+        and inner.get_right()[0] <= outer.get_right()[0] + margin
+        and outer.get_bottom()[1] - margin <= inner.get_bottom()[1]
+        and inner.get_top()[1] <= outer.get_top()[1] + margin
+    )
+
+
+def where(mob) -> np.ndarray:
+    return mob.get_center()[:2].round(1)
+
+
 class LostInInjection(MovingCameraScene):
     def construct(self):
         self.frame = self.camera.frame
@@ -334,14 +409,22 @@ class LostInInjection(MovingCameraScene):
         self.carry = self.landing = None
         self.backdrop = self.pin(backdrop())
         self.add(self.backdrop)
+        segments = json.loads((HERE / "narration.json").read_text())
+        lengths = {}
+        for segment in segments:
+            with av.open(str(HERE / "audio" / f"{segment['id']}.mp3")) as container:
+                lengths[segment["id"]] = container.duration / 1e6
+        total = TITLE + sum(lengths[n] + HOLD[n] for n in lengths)
+        self.dust, self.progress = self.particles(), self.progress_line(total)
+        self.add(self.dust, self.progress)
+        self.persistent = (self.frame, self.backdrop, self.dust, self.progress)
         self.beat, self.elapsed = "title", 0.0
         self.title_card()
         clips = []
-        for segment in json.loads((HERE / "narration.json").read_text()):
+        for segment in segments:
             name = segment["id"]
             path = HERE / "audio" / f"{name}.mp3"
-            with av.open(str(path)) as container:
-                length = container.duration / 1e6
+            length = lengths[name]
             # Not Scene.add_sound: it drops the clip whenever the previous animation came from
             # the render cache.
             self.renderer.file_writer.add_sound(str(path), self.renderer.time)
@@ -382,7 +465,7 @@ class LostInInjection(MovingCameraScene):
         """Slide everything on screen, and the camera with it, one stride to the left, so the
         picture does not change. The next play() then pans the camera back to the origin, where
         the next beat builds itself, while the old heading fades and the new one arrives."""
-        self.leaving = [m for m in self.mobjects if m not in (self.frame, self.backdrop)]
+        self.leaving = [m for m in self.mobjects if m not in self.persistent]
         # Shift each object once: the groups Manim keeps for finished animations repeat objects
         # that are also on screen by themselves, and can hold the camera frame.
         moving = {id(m): m for top in self.leaving for m in top.family_members_with_points()}
@@ -421,31 +504,85 @@ class LostInInjection(MovingCameraScene):
 
     # 0. Title card, silent ------------------------------------------------------------------
     def title_card(self):
-        name_and_subtitle, marks = title_block(with_link=False)
+        (name, rule, subtitle), marks = title_block(with_link=False)
+        halo = glow(ACCENT, 5.0, 0.28).move_to(name)
+        self.play(decode(name, 1.3), FadeIn(halo, scale=0.6))
         self.play(
-            LaggedStart(
-                FadeIn(name_and_subtitle[0], shift=0.25 * UP),
-                FadeIn(name_and_subtitle[1], shift=0.15 * UP),
-                LaggedStart(*[FadeIn(m, shift=0.1 * UP) for m in marks], lag_ratio=0.25),
-                lag_ratio=0.3,
-            ),
-            run_time=1.6,
+            GrowFromCenter(rule),
+            FadeIn(subtitle, shift=0.15 * UP),
+            LaggedStart(*[FadeIn(m, shift=0.1 * UP) for m in marks], lag_ratio=0.25),
+            run_time=0.9,
         )
-        self.wait(0.9)
+        self.wait(TITLE - 2.2)
+
+    def particles(self) -> VGroup:
+        """Faint dust drifting up through the frame, wherever the camera is."""
+        rng = np.random.default_rng(7)
+        n = 48
+        base = rng.uniform(-0.5, 0.5, (n, 2))
+        drift = np.column_stack([rng.uniform(-0.004, 0.004, n), rng.uniform(0.004, 0.013, n)])
+        colors = ["#9fb4d8", "#9fb4d8", ACCENT, "#e3a06b"]
+        dots = VGroup(
+            *[
+                Dot(radius=rng.uniform(0.012, 0.03), color=colors[i % 4]).set_opacity(
+                    rng.uniform(0.1, 0.35)
+                )
+                for i in range(n)
+            ]
+        ).set_z_index(-50)
+        clock = [0.0]
+
+        def drift_up(group, dt):
+            clock[0] += dt
+            f = self.frame
+            center, w, h = f.get_center(), f.width, f.height
+            spots = (base + drift * clock[0] + 0.5) % 1.0 - 0.5
+            for dot, (x, y) in zip(group, spots, strict=True):
+                dot.move_to([center[0] + x * w, center[1] + y * h, 0])
+
+        return dots.add_updater(drift_up)
+
+    def progress_line(self, total: float) -> VGroup:
+        """A hairline along the bottom edge that fills as the video plays."""
+        track = Line(LEFT, RIGHT, color="#1c2742", stroke_width=3)
+        done = Line(LEFT, RIGHT, color=ACCENT, stroke_width=3)
+        clock = [0.0]
+
+        def follow(group, dt):
+            clock[0] += dt
+            f = self.frame
+            left = f.get_center() + [-f.width / 2, -f.height / 2 + 0.04, 0]
+            track.put_start_and_end_on(left, left + f.width * RIGHT)
+            share = min(1.0, max(0.002, clock[0] / total))
+            done.put_start_and_end_on(left, left + share * f.width * RIGHT)
+
+        return VGroup(track, done).set_z_index(50).add_updater(follow)
 
     def layout_problems(self) -> list[str]:
         f = self.frame
         left, right = f.get_center()[0] - f.width / 2, f.get_center()[0] + f.width / 2
         bottom, top = f.get_center()[1] - f.height / 2, f.get_center()[1] + f.height / 2
+        family = [
+            s for m in self.mobjects if m not in self.persistent for s in m.get_family()
+        ]
         texts = [
             s
-            for m in self.mobjects
-            for s in m.get_family()
+            for s in family
             if isinstance(s, (Text, MarkupText)) and s.submobjects and s.get_fill_opacity() > 0.4
         ]
+        glyphs = {id(g) for t in texts for g in t.get_family()}
+        # Every other visible shape too (icons, cards, arrows); glows are images and may bleed.
+        shapes = [
+            s
+            for s in family
+            if isinstance(s, VMobject)
+            and id(s) not in glyphs
+            and s.has_points()
+            and max(s.get_fill_opacity(), s.get_stroke_opacity()) > 0.4
+        ]
         problems = []
-        for t in texts:
-            x0, x1, y0, y1 = t.get_left()[0], t.get_right()[0], t.get_bottom()[1], t.get_top()[1]
+        for m in texts + shapes:
+            x0, x1, y0, y1 = m.get_left()[0], m.get_right()[0], m.get_bottom()[1], m.get_top()[1]
             inside = (
                 x0 >= left - 0.02
                 and x1 <= right + 0.02
@@ -454,11 +591,18 @@ class LostInInjection(MovingCameraScene):
             )
             outside = x1 < left or x0 > right or y1 < bottom or y0 > top
             if not inside and not outside:
-                problems.append(f"cut by the frame: {t.text[:40]!r}")
+                name = m.text[:40] if m in texts else f"{type(m).__name__} at {where(m)}"
+                problems.append(f"cut by the frame: {name!r}")
         for i, a in enumerate(texts):
             for b in texts[i + 1 :]:
                 if boxes_overlap(a, b):
                     problems.append(f"overlap: {a.text[:30]!r} and {b.text[:30]!r}")
+        # Chip and card backgrounds may nest (a highlight inside a card) but not partly overlap.
+        panels = [s for s in shapes if isinstance(s, Rectangle) and s.get_fill_opacity() > 0.5]
+        for i, a in enumerate(panels):
+            for b in panels[i + 1 :]:
+                if boxes_overlap(a, b) and not (contains(a, b) or contains(b, a)):
+                    problems.append(f"panels overlap at {where(a)} and {where(b)}")
         return problems
 
     # 1. An instruction hidden in a review, in Swahili ------------------------------------------
@@ -488,12 +632,14 @@ class LostInInjection(MovingCameraScene):
         model = (
             Group(logo(1.0), text("Tiny Aya Global", 26))
             .arrange(DOWN, buff=0.18)
-            .next_to(brace, RIGHT, buff=0.6)
+            .next_to(brace, RIGHT, buff=0.5)
         )
         out = card(text("Hacked!", 36, ATTACK, weight="BOLD"), RED, RED_LINE).next_to(
-            model, RIGHT, buff=0.6
+            model, RIGHT, buff=0.5
         )
-        Group(inputs, brace, model, out).move_to(0.35 * UP)
+        story = Group(inputs, brace, model, out)
+        # Keep a margin the end-of-beat push-in never reaches.
+        story.scale_to_fit_width(min(story.width, 0.9 * config.frame_width)).move_to(0.35 * UP)
         arrows = VGroup(
             Arrow(brace.get_right(), model[0].get_left(), buff=0.12, color=GRAY, stroke_width=3),
             Arrow(model[0].get_right(), out.get_left(), buff=0.12, color=GRAY, stroke_width=3),
@@ -528,7 +674,12 @@ class LostInInjection(MovingCameraScene):
             FadeIn(model, shift=0.2 * RIGHT),
             run_time=0.7,
         )
-        self.play(GrowArrow(arrows[1]), FadeIn(out, scale=1.25), run_time=0.5)
+        self.play(
+            GrowArrow(arrows[1]),
+            FadeIn(out, scale=1.25),
+            FadeIn(glow(ATTACK, 1.6, 0.35).move_to(out)),
+            run_time=0.5,
+        )
         self.play(Wiggle(out, scale_value=1.12, rotation_angle=0.04), run_time=0.5)
         self.play(
             Write(text("prompt injection", 36, INK, slant="ITALIC").to_edge(DOWN, buff=0.7)),
@@ -561,8 +712,9 @@ class LostInInjection(MovingCameraScene):
         arrow = Arrow(shield.get_right(), box.get_left(), buff=0.3, color=GRAY, stroke_width=3)
         english = tag("EN", 28).move_to(shield.get_corner(DOWN + RIGHT) + [0.2, 0.35, 0])
 
+        halo = glow(META_SECALIGN, 1.7, 0.32).move_to(shield)
         self.landing = injection  # the Swahili payload flies in from the hook
-        self.play(FadeIn(defense, shift=0.15 * UP), run_time=1.0)
+        self.play(FadeIn(defense, shift=0.15 * UP), FadeIn(halo), run_time=1.0)
         self.wait(0.6)
         self.play(GrowArrow(arrow), run_time=0.5)
         self.play(  # "treat that text as data"
@@ -579,7 +731,8 @@ class LostInInjection(MovingCameraScene):
         globe = icon("globe", INK, 1.1).move_to(1.4 * RIGHT + 0.2 * DOWN)
         self.play(
             FadeOut(VGroup(injection, box, label, arrow)),
-            VGroup(defense, english).animate.scale(0.6).move_to(5.2 * LEFT + 0.2 * DOWN),
+            FadeOut(halo),
+            VGroup(defense, english).animate.scale(0.6).move_to(5.45 * LEFT + 0.2 * DOWN),
             FadeIn(globe, scale=0.5),
             run_time=0.6,
         )
@@ -588,7 +741,7 @@ class LostInInjection(MovingCameraScene):
             angle = np.pi / 2 - i * 2 * np.pi / len(LANGUAGES)
             tags.add(
                 tag(name, 26, font).move_to(
-                    globe.get_center() + [4.2 * np.cos(angle), 2.5 * np.sin(angle), 0]
+                    globe.get_center() + [4.6 * np.cos(angle), 2.5 * np.sin(angle), 0]
                 )
             )
         for t in tags:
@@ -596,12 +749,12 @@ class LostInInjection(MovingCameraScene):
             t.scale(0.2).move_to(globe).set_opacity(0)
         self.play(LaggedStart(*[Restore(t) for t in tags], lag_ratio=0.12), run_time=1.5)
 
-    # 3. Four model families, the languages each one claims, and eight defenses -------------
+    # 3. Seven models from three families, the languages each claims, and eight defenses -------
     def scale(self):
         codes = ["EN", "FR", "ZH", "HI", "SW", "UR", "TA", "AM"]
         # Languages each model card lists as supported (Qwen3: its release notes).
         families = (
-            ("Tiny Aya", "3B", 0.8, set(codes)),
+            ("Tiny Aya ×4", "3B", 0.8, set(codes)),
             ("Qwen3", "4B", 0.95, set(codes) - {"AM"}),
             ("Llama 3.1", "8B", 1.3, {"EN", "FR", "HI"}),
             ("Llama 3.3", "70B", 2.3, {"EN", "FR", "HI"}),
@@ -613,12 +766,12 @@ class LostInInjection(MovingCameraScene):
                 corner_radius=0.06,
                 width=0.35,
                 height=0.28,
-                fill_color=TAG if supported else "#ffffff",
+                fill_color=TAG if supported else CARD,
                 fill_opacity=1,
                 stroke_color=TAG if supported else GRAY,
                 stroke_width=1.5,
             )
-            label = text(code, 14, "#ffffff" if supported else GRAY, weight="BOLD")
+            label = text(code, 14, BG if supported else GRAY, weight="BOLD")
             return VGroup(box, label.move_to(box))
 
         models, coverage = VGroup(), VGroup()
@@ -711,6 +864,7 @@ class LostInInjection(MovingCameraScene):
         self.landing = chip  # Tiny Aya's chip from the setup
         self.play(
             FadeIn(shield, scale=0.8),
+            FadeIn(glow(ENGLISH_ONLY, 2.6, 0.3).move_to(shield)),
             FadeIn(caption),
             FadeIn(note),
             run_time=1.0,
@@ -809,7 +963,12 @@ class LostInInjection(MovingCameraScene):
         hacked = card(text("Hacked!", 32, ATTACK, weight="BOLD"), RED, RED_LINE).next_to(
             model, UP, buff=0.2
         )
-        self.play(model.animate.set_stroke(ATTACK), FadeIn(hacked, scale=1.25), run_time=0.5)
+        self.play(
+            model.animate.set_stroke(ATTACK),
+            FadeIn(hacked, scale=1.25),
+            FadeIn(glow(ATTACK, 2.2, 0.3).move_to(model)),
+            run_time=0.5,
+        )
 
     # 6. More tries get through; English rewordings as much as translations -------------------
     def tries(self):
@@ -947,7 +1106,7 @@ class LostInInjection(MovingCameraScene):
             ],
             text("Hacked!", 30, INK, weight="BOLD"),
         ).arrange(DOWN, aligned_edge=LEFT, buff=0.2)
-        reply = card(lines, "#ffffff", LIGHT, pad=0.35)
+        reply = card(lines, CARD, CARD_LINE, pad=0.35)
         title = (
             text("a defended model's reply", 22, GRAY)
             .next_to(reply, UP, buff=0.15)
@@ -972,7 +1131,7 @@ class LostInInjection(MovingCameraScene):
             Rectangle(
                 width=reply.width - 0.2,
                 height=lines[0].height + 0.24,
-                fill_color="#dbe9f6",
+                fill_color="#1d3a5e",
                 fill_opacity=1,
                 stroke_width=0,
             )
@@ -1093,7 +1252,7 @@ class LostInInjection(MovingCameraScene):
                     ).arrange(RIGHT, buff=0.15)
                     for c, s in (
                         (ENGLISH_ONLY, "English-only defense"),
-                        (LOW_RESOURCE, "+ Hindi, Swahili, romanized Hindi, Hinglish"),
+                        (LOW_RESOURCE, "+ low-resource injections"),
                     )
                 ]
             )
@@ -1237,8 +1396,8 @@ class LostInInjection(MovingCameraScene):
             rules.add(
                 card(
                     VGroup(picture, lines).arrange(DOWN, buff=0.4),
-                    "#ffffff",
-                    LIGHT,
+                    CARD,
+                    CARD_LINE,
                     width=3.9,
                     height=2.9,
                 )
@@ -1252,8 +1411,15 @@ class LostInInjection(MovingCameraScene):
         self.play(FadeIn(rules[2], shift=0.2 * UP), run_time=0.5)  # "and score what the reply"
         self.wait(1.71)
         self.next_region()  # the end card: the title card again, with the repository link
-        (name, subtitle), link, marks = title_block(with_link=True)
-        self.play(FadeIn(name, shift=0.25 * UP), FadeIn(subtitle, shift=0.15 * UP), run_time=0.8)
+        (name, rule, subtitle), link, marks = title_block(with_link=True)
+        halo = glow(ACCENT, 5.0, 0.28).move_to(name)
+        self.play(
+            decode(name, 0.8),
+            FadeIn(halo),
+            GrowFromCenter(rule),
+            FadeIn(subtitle, shift=0.15 * UP),
+            run_time=0.8,
+        )
         self.play(
             FadeIn(link, shift=0.1 * UP),
             LaggedStart(*[FadeIn(m, shift=0.1 * UP) for m in marks], lag_ratio=0.25),

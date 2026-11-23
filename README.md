@@ -10,6 +10,7 @@
   <a href="REPORT.md"><b>Paper</b></a> &nbsp;·&nbsp;
   <a href="ARTICLE.md"><b>Blog post</b></a> &nbsp;·&nbsp;
   <a href="docs/lost-in-injection.mp4"><b>Video</b></a> &nbsp;·&nbsp;
+  <a href="docs/lost-in-injection-slides.pdf"><b>Slides</b></a> &nbsp;·&nbsp;
   <a href="https://huggingface.co/collections/beingamanforever/tiny-aya-global-hardened-against-prompt-injection-6af83c90c9b6f21539a70475"><b>Models</b></a> &nbsp;·&nbsp;
   <a href="https://huggingface.co/collections/beingamanforever/lost-in-injection-data-and-model-outputs-6af83c907e17226835782018"><b>Data</b></a>
   <br><sub>Lexsi AI Safety and Alignment Hackathon 2026 · Track 2a, problem statements 4 and 3</sub>

@@ -3,7 +3,7 @@
 The runners read the tokenizer, and so the chat template, from the model directory, and take
 the base model from the path before its first "_" (Meta_SecAlign utils.py:188-196). This
 directory holds the official weights as symlinks, plus a tokenizer whose chat template has an
-`input` role for untrusted data. Tiny Aya (Global and Phase 2's fire, earth and water) and Qwen3
+`input` role for untrusted data. Tiny Aya (Global, Fire, Earth and Water) and Qwen3
 drop roles they do not know, so `add_input_role` adds one to their official template, and its
 guard fails loudly if a template no longer matches. Llama 3.1 and 3.2 get the template
 Meta-SecAlign trains with (`meta_llama_template`), so Meta's own Meta-SecAlign-8B and our Llama

@@ -16,11 +16,11 @@ number of prompts an attacker tries, in random order, before the first success. 
 to one long table, results/metrics.csv, and the DPO training curves to results/training.csv; the
 figures read only these two files.
 
-Phase 1's numbers (seed "0") are published and reproduce byte-for-byte: every later number draws
-from its own generator per stage, model and seed (model_rng), so phase 1's draws from
+The first runs' numbers (seed "0") are published and reproduce byte-for-byte: every later number
+draws from its own generator per stage, model and seed (model_rng), so their draws from
 np.random.default_rng(0) never move, and adding a model never moves another model's interval.
-The later pass adds: the seven extra-held-out variants for phase 1's models; full
-rows for further seeds, the ablations and Phase 2's family models; their relative-reduction and
+The later pass adds: the seven extra-held-out variants for the original Global runs; full
+rows for further seeds, the ablations and the family models; their relative-reduction and
 transfer-gap rows against each model's own base; seed "mean" rows with a two-level bootstrap over
 cases and seeds for the two models with more than one seed; region-focus rows for the family models;
 the adaptive multilingual attacker's query-count curve and language mix; and instruction-following
@@ -313,13 +313,13 @@ def write_csv(path: Path, fields: tuple[str, ...], rows: list[dict]) -> None:
     print(f"{len(rows)} rows written to {path}")
 
 
-# --- Phase 2: seeds, ablations, the family models, new languages, the adaptive attacker and
+# --- Later runs: seeds, ablations, the family models, new languages, the adaptive attacker and
 # generation quality. Everything below draws from its own generators (model_rng), so none of it can
-# move a phase-1 (seed "0") draw or value, and adding a model moves no other model's interval.
+# move a first-run (seed "0") draw or value, and adding a model moves no other model's interval.
 
 
 def model_rng(stage: str, model: str, seed: str) -> np.random.Generator:
-    """Phase 2's generator for one stage, model and seed."""
+    """The generator for one later stage, model and seed."""
     return np.random.default_rng([1, *f"{stage}/{model}/{seed}".encode()])
 
 
@@ -408,7 +408,7 @@ def all_run_dirs(runs_root: Path) -> list[tuple[str, str, Path]]:
 
 
 def new_model_seeds(runs_root: Path, done: set[tuple[str, str]]) -> list[tuple[str, str, Path]]:
-    """(model, seed, eval_dir) for RUNS and family-model seeds phase 1 has not already covered."""
+    """(model, seed, eval_dir) for RUNS and family-model seeds the first runs have not covered."""
     targets = []
     for model in sorted({*RUNS, *FAMILY_MODELS, *OTHER_FAMILY_MODELS}):
         for seed, seed_dir in seed_dirs(runs_root / model):
@@ -422,8 +422,8 @@ def new_model_seeds(runs_root: Path, done: set[tuple[str, str]]) -> list[tuple[s
 def full_model_rows(
     model: str, eval_dir: Path, rng: np.random.Generator, seed: str
 ) -> tuple[list[dict], dict, dict]:
-    """model_rows's phase-2 counterpart: every evaluated variant (up to all 19), every ASR
-    aggregate, and the raw utility arrays (for seed-mean rows)."""
+    """model_rows's counterpart for the later runs: every evaluated variant (up to all 19),
+    every ASR aggregate, and the raw utility arrays (for seed-mean rows)."""
     rows, combined, prompts = [], {OFFICIAL: {}, MARKDOWN_TOLERANT: {}}, {}
     defense = prompt_defense(model)
     input_role = split(model)[1] != "no-input-role"
@@ -474,12 +474,12 @@ def base_combined_for(model: str, combined: dict, combined_by_seed: dict) -> dic
     return combined_by_seed.get((name, "0"))
 
 
-def comparison_rows_phase_two(
-    combined: dict, combined_by_seed: dict, done_phase1: set[tuple[str, str]]
+def comparison_rows_later(
+    combined: dict, combined_by_seed: dict, done_first: set[tuple[str, str]]
 ) -> list[dict]:
     rows = []
     for (model, seed), model_combined in sorted(combined_by_seed.items()):
-        if (model, seed) in done_phase1 or split(model)[1] == "base":
+        if (model, seed) in done_first or split(model)[1] == "base":
             continue
         base_combined = base_combined_for(model, combined, combined_by_seed)
         if base_combined is None:
@@ -758,9 +758,9 @@ def paraphrase_rows(run_dirs: list[tuple[str, str, Path]]) -> list[dict]:
     return rows
 
 
-def phase_two_rows(runs_root: Path, combined: dict) -> list[dict]:
+def later_rows(runs_root: Path, combined: dict) -> list[dict]:
     rows = []
-    done_phase1 = {(model, "0") for model in MODELS if model in combined}
+    done_first = {(model, "0") for model in MODELS if model in combined}
 
     for model in MODELS:
         if model in combined:
@@ -779,7 +779,7 @@ def phase_two_rows(runs_root: Path, combined: dict) -> list[dict]:
             if utility_file.exists():
                 utility_by_seed[(model, "0")] = utility(utility_file)
 
-    for model, seed, eval_dir in new_model_seeds(runs_root, done_phase1):
+    for model, seed, eval_dir in new_model_seeds(runs_root, done_first):
         model_table, model_combined, model_utility = full_model_rows(
             model, eval_dir, model_rng("full", model, seed), seed
         )
@@ -788,7 +788,7 @@ def phase_two_rows(runs_root: Path, combined: dict) -> list[dict]:
         if model_utility:
             utility_by_seed[(model, seed)] = model_utility
 
-    rows += comparison_rows_phase_two(combined, combined_by_seed, done_phase1)
+    rows += comparison_rows_later(combined, combined_by_seed, done_first)
     rows += seed_mean_rows(combined_by_seed, utility_by_seed, model_rng("seed-mean", "", "mean"))
     rows += region_focus_rows(combined_by_seed)
     run_dirs = all_run_dirs(runs_root)
@@ -816,7 +816,7 @@ def main() -> None:
                 base, run = combined["base"][benchmark], combined[model][benchmark]
                 rows += comparison_rows(model, benchmark, base, run, rng)
 
-    rows += phase_two_rows(args.runs, combined)
+    rows += later_rows(args.runs, combined)
     rows += paraphrase_rows(all_run_dirs(args.runs))
     rows += generation_difference_rows(all_run_dirs(args.runs))
 
