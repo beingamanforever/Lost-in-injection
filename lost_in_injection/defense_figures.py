@@ -438,11 +438,10 @@ TRANSFER = [
     ("qwen-english-only", "Ours\nQwen"),
 ]
 FILTERED = [  # a dagger marks the languages on Prompt Guard 2's model card
-    ("english", "EN\u2020"),
-    ("french", "FR\u2020"),
-    ("hindi", "HI\u2020"),
-    ("romanized-hindi", "HI\nLatin"),
-    ("swahili", "SW"),
+    ("english", "English\u2020"),
+    ("hindi", "Hindi\u2020"),
+    ("romanized-hindi", "Romanized\nHindi"),
+    ("swahili", "Swahili"),
 ]
 LIGHT = "#9db8e3"  # a rule that overcounts, drawn lighter than the attacker's bars
 TOP = 112  # headroom above 100% so the gain brackets clear the bars and the titles
@@ -462,7 +461,7 @@ def bars(ax, values: list[float], labels: list[str], colours: list[str], bold=()
     for x, value in enumerate(values):
         weight = "bold" if x in bold else "normal"
         ax.text(x, value + 2, f"{value:.0f}", ha="center", va="bottom", fontsize=7, weight=weight)
-    ax.set_xticks(range(len(values)), labels, fontsize=7)
+    ax.set_xticks(range(len(values)), labels, fontsize=6.5)
     ax.tick_params(axis="x", length=0)
 
 
@@ -476,7 +475,7 @@ def bracket(ax, x0: int, x1: int, values: list[float], label: str) -> None:
 def findings(acl: Path, out: Path) -> None:
     """The four findings at a glance, one panel each, for the paper's first figure."""
     core = [name for name, _ in LANGUAGES]
-    widths = [2.2, 1.6, 1.15, 1.15]
+    widths = [1.75, 2.15, 1.8, 1.3]
     fig, axes = plt.subplots(1, 4, figsize=(WIDTH, 1.95), gridspec_kw={"width_ratios": widths})
 
     ax = axes[0]  # Trained defenses: English next to the worst other language, LLM judge
@@ -504,8 +503,8 @@ def findings(acl: Path, out: Path) -> None:
     ax = axes[1]  # The filter: one try per language behind Prompt Guard 2, starts-with rule
     rates = one_try(acl / "comprehension_adjusted.csv", "promptguard")
     values = [rates[v] for v, _ in FILTERED]
-    bars(ax, values, [label for _, label in FILTERED], [BASELINE] + [ATTACK] * 4, bold=(0, 4))
-    bracket(ax, 0, 4, values, f"+{values[-1] - values[0]:.0f}")
+    bars(ax, values, [label for _, label in FILTERED], [BASELINE] + [ATTACK] * 3, bold=(0, 3))
+    bracket(ax, 0, 3, values, f"+{values[-1] - values[0]:.0f}")
     ax.set_title("(b) The input filter\nmisses Swahili")
 
     ax = axes[2]  # Extra tries: our English-only defense, one training seed, starts-with rule
@@ -515,7 +514,7 @@ def findings(acl: Path, out: Path) -> None:
         if r["model"] == "english-only" and r["seed"] == "1"
     }
     values = [budget["translation", "1"], budget["translation", "11"], budget["paraphrase", "11"]]
-    labels = ["1\ntry", "11\nlang.", "11\nreword."]
+    labels = ["One\ntry", "11\nlanguages", "11\nrewordings"]
     bars(ax, values, labels, [BASELINE] + [ATTACK] * 2, bold=(0, 1))
     bracket(ax, 0, 1, values, f"+{values[1] - values[0]:.0f}")
     ax.set_title("(c) Extra tries\nget through")
@@ -525,7 +524,7 @@ def findings(acl: Path, out: Path) -> None:
         one_try(acl / f"comprehension_adjusted{suffix}.csv", "english-only")["english"]
         for suffix in ("", "_judged", "_anywhere")
     ]
-    labels = ["Starts\nwith", "LLM\njudge", "Any-\nwhere"]
+    labels = ["Starts-\nwith", "LLM\njudge", "Anywhere"]
     bars(ax, values, labels, [BASELINE, ATTACK, LIGHT], bold=(0, 1))
     bracket(ax, 0, 1, values, f"+{values[1] - values[0]:.0f}")
     ax.set_title("(d) The official scorer\nmisses hijacks")
@@ -540,7 +539,7 @@ def findings(acl: Path, out: Path) -> None:
             ax.spines[side].set_visible(False)
     for ax in axes[1:]:
         ax.set_yticklabels([])
-    fig.subplots_adjust(wspace=0.3)
+    fig.subplots_adjust(wspace=0.15)
     save(fig, out, "findings")
 
 
