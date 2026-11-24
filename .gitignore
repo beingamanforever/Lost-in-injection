@@ -5,3 +5,6 @@ __pycache__/
 runs/
 data/
 !results/
+.cache/
+logs/
+env.local.sh

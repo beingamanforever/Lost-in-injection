@@ -1,12 +1,7 @@
-# Source on the A10G before any command: the root disk is full, so every cache lives on NVMe.
-export PROJECT_ROOT=/opt/dlami/nvme/aman/lost-in-injection
-export HF_HOME=/opt/dlami/nvme/aman/hf
-export NLTK_DATA=/opt/dlami/nvme/aman/nltk-data
-export UV_CACHE_DIR=/opt/dlami/nvme/aman/uv-cache
-export UV_PYTHON_INSTALL_DIR=/opt/dlami/nvme/aman/uv-python
-export TMPDIR=/opt/dlami/nvme/aman/tmp
-export PATH=/opt/dlami/nvme/aman/tools/bin:$PATH
-mkdir -p "$TMPDIR"
+# Source from the repository root before any command. Caches keep their usual defaults; an untracked
+# env.local.sh can move them (on the A10Gs it points HF_HOME, uv and TMPDIR at the NVMe disk).
+if [ -f env.local.sh ]; then source env.local.sh; fi
+export NLTK_DATA=${NLTK_DATA:-$PWD/.cache/nltk-data}
 # The Deep Learning AMI's LD_LIBRARY_PATH holds its own CUDA libraries (cuDNN 9.10 on the first A10G),
 # which shadow the ones bundled with torch and break training; use the bundled ones everywhere.
 unset LD_LIBRARY_PATH

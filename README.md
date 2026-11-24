@@ -11,8 +11,8 @@
   <a href="ARTICLE.md"><b>Blog post</b></a> &nbsp;·&nbsp;
   <a href="docs/lost-in-injection.mp4"><b>Video</b></a> &nbsp;·&nbsp;
   <a href="docs/lost-in-injection-slides.pdf"><b>Slides</b></a> &nbsp;·&nbsp;
-  <a href="https://huggingface.co/collections/beingamanforever/tiny-aya-global-hardened-against-prompt-injection-6af83c90c9b6f21539a70475"><b>Models</b></a> &nbsp;·&nbsp;
-  <a href="https://huggingface.co/collections/beingamanforever/lost-in-injection-data-and-model-outputs-6af83c907e17226835782018"><b>Data</b></a>
+  <a href="https://huggingface.co/collections/beingamanforever/lost-in-injection-models-6af83c90c9b6f21539a70475"><b>Models</b></a> &nbsp;·&nbsp;
+  <a href="https://huggingface.co/collections/beingamanforever/lost-in-injection-datasets-6af83c907e17226835782018"><b>Data</b></a>
   <br><sub>Lexsi AI Safety and Alignment Hackathon 2026 · Track 2a, problem statements 4 and 3</sub>
   <br><sub>Long paper submitted to three AAAI-27 workshops: LAUT, SPF-LLM and AICS</sub>
 </p>
@@ -77,10 +77,13 @@ Every reply is scored by Meta-SecAlign's rule, by "Hacked" anywhere, and by an L
 
 ## Reproduce
 
-One 24 GB GPU and two uv environments from `envs/`: `gen` (vLLM 0.11.0, Meta-SecAlign's pins) and `train` (AlignTune, TRL 1.7.1).
+One 24 GB GPU and three uv environments from `envs/`: `gen` (vLLM 0.11.0, Meta-SecAlign's pins), `train` (AlignTune, TRL 1.7.1) and `xlit` (IndicXlit romanization).
+Run everything from the repository root: paths are relative, and models and data download from Hugging Face and pinned GitHub revisions.
+Log in to Hugging Face with access to the gated Llama 3.1, Llama 3.3, Prompt Guard 2 and Meta-SecAlign models.
 `modal_app.py` runs the same commands on Modal for the 70B model.
 
 ```bash
+bash envs/setup.sh                # the three environments
 bash scripts/build_data.sh        # curate with CuratorKIT, translate and gate, build the test sets
 bash scripts/run_baselines.sh     # undefended and prompted baselines
 bash scripts/run_models.sh english-only english-plus-high-resource english-plus-low-resource

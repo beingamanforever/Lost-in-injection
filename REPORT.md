@@ -514,8 +514,8 @@ We expect more seeds to tighten per-language intervals to about ±3 points, and 
 | Artifact | Where |
 |---|---|
 | Code | [github.com/beingamanforever/Lost-in-injection](https://github.com/beingamanforever/Lost-in-injection) |
-| Adapters | [Tiny Aya Global, hardened against prompt injection](https://huggingface.co/collections/beingamanforever/tiny-aya-global-hardened-against-prompt-injection-6af83c90c9b6f21539a70475) |
-| Data, outputs, logs, metrics | [Lost in Injection: data and model outputs](https://huggingface.co/collections/beingamanforever/lost-in-injection-data-and-model-outputs-6af83c907e17226835782018) |
+| Adapters | [Lost in Injection: models](https://huggingface.co/collections/beingamanforever/lost-in-injection-models-6af83c90c9b6f21539a70475) |
+| Data, outputs, logs, metrics | [Lost in Injection: datasets](https://huggingface.co/collections/beingamanforever/lost-in-injection-datasets-6af83c907e17226835782018) |
 | Analysis tables | `results/metrics.csv`, `results/acl/*.csv` (judge answers, per-language rates, controls, tokenizers, AgentDojo) |
 | Native-speaker review site | [contact-1950--lii.us-east.modal.run](https://contact-1950--lii.us-east.modal.run) |
 | Video | [`docs/lost-in-injection.mp4`](docs/lost-in-injection.mp4), 87 seconds, made with Manim from `video/`, narrated with ElevenLabs v4, over a score synthesized by `video/score.py` |
@@ -525,12 +525,15 @@ We expect more seeds to tighten per-language intervals to about ±3 points, and 
 
 ### Environment
 
-Two uv environments are pinned in `envs/`: `gen` (Meta-SecAlign's pins: vLLM 0.11.0, transformers 4.57.1) for generation, translation and evaluation, and `train` (AlignTune with TRL 1.7.1) for curation and training.
+Three uv environments are pinned in `envs/`: `gen` (Meta-SecAlign's pins: vLLM 0.11.0, transformers 4.57.1) for generation, translation and evaluation, `train` (AlignTune with TRL 1.7.1) for curation and training, and `xlit` for IndicXlit romanization.
+`bash envs/setup.sh` builds them.
+Every command runs from the repository root with relative paths; models and data download from Hugging Face and pinned GitHub revisions, so a Hugging Face login with access to the gated Llama 3.1, Llama 3.3, Prompt Guard 2 and Meta-SecAlign models is needed.
 One 24 GB GPU runs everything up to 8B; `modal_app.py` runs the same commands on Modal for the 70B model.
 
 ### Commands
 
 ```bash
+bash envs/setup.sh
 bash scripts/build_data.sh
 bash scripts/run_baselines.sh
 bash scripts/run_models.sh english-only english-plus-high-resource english-plus-low-resource

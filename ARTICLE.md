@@ -173,7 +173,7 @@ Four things, all cheap:
 3. Score whether the payload was delivered, not whether the reply starts with it.[^1]
 4. Put low-resource injections in the training mix.
 
-The code and the full write-up are on [GitHub](https://github.com/beingamanforever/Lost-in-injection), and the adapters, data and every model reply are on Hugging Face, in [one collection for models](https://huggingface.co/collections/beingamanforever/tiny-aya-global-hardened-against-prompt-injection-6af83c90c9b6f21539a70475) and [one for data](https://huggingface.co/collections/beingamanforever/lost-in-injection-data-and-model-outputs-6af83c907e17226835782018).
+The code and the full write-up are on [GitHub](https://github.com/beingamanforever/Lost-in-injection), and the adapters, data and every model reply are on Hugging Face, in [one collection for models](https://huggingface.co/collections/beingamanforever/lost-in-injection-models-6af83c90c9b6f21539a70475) and [one for data](https://huggingface.co/collections/beingamanforever/lost-in-injection-datasets-6af83c907e17226835782018).
 This was built for the Lexsi AI Safety and Alignment Hackathon 2026, Track 2a.
 
 *Claude Code helped me write the scripts, draw the figures and build the video; the evaluation code is Meta-SecAlign's own. The idea, the literature review, the experiment design and the checking are mine.*

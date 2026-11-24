@@ -13,7 +13,8 @@
 set -uo pipefail
 cd "$(dirname "$0")/.."
 source env.sh
-LOGS=/opt/dlami/nvme/aman/lost-in-injection-logs
+LOGS=${LOGS:-logs}
+mkdir -p "$LOGS"
 wait_pid=$1
 shift
 while [ "$wait_pid" != 0 ] && kill -0 "$wait_pid" 2>/dev/null; do sleep 60; done
